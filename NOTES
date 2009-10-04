@@ -1,0 +1,75 @@
+NICE SYNTAX for PASTA
+=====================
+
+Allow definition of functions, local variables, global variables, with register allocation. Aim is to permit easy function calls to functions with varied & bizarre calling conventions. These might be:
+
+* arguments in hardware registers
+* arguments in fixed zero-page locations
+* arguments in other fixed locations
+* arguments on a soft (X-indexed zero-page) stack (the "zpstack").
+* arguments on a soft (Y-indexed, absolute) stack (the "softstack").
+* arguments in a block of memory.
+
+We want to be able to define global variables without necessarily declaring where they should go, so ZP locations can be shared between several (depending on analysis).
+
+We want to be able to declare variables on ZP stack, and have the proper offsets calculated automatically.
+
+Want to be able to declare hw registers, memory locations which a function (internal or external) will clobber.
+
+LITERAL STRINGS
+===============
+
+Maybe a way of using literal strings inline, e.g.:
+
+	.string_terminator 13
+	.call foo ("Hello world")
+	.string_terminator off
+
+This would be put into a data region and the address would be passed to the function.
+
+VARIABLE DECLARATION AND ACCESS
+===============================
+
+	.glob (zp,2) foo
+	.glob (zp,2) bar
+	
+	.hi
+	.temps A,Y,$20..$26
+	bar = #15
+	[bar:foo] = #100000  (concatenation)
+	.endhi
+	
+FUNCTION DECLARATION
+====================
+
+	.func foo
+	.in (A) arg1
+	.in ($20,2) arg2
+	.in (zp,2) arg3, arg4
+	.out (A)
+	.inout ($22,2) arg6
+	.clobber $21,2; $24..$26; A; X; Y
+	.loc (zp,1) tmp
+	
+	sta tmp
+	lda arg2
+	clc
+	adc arg3
+	sta arg2
+	rts
+
+	.endfunc
+
+External functions the same, with no code:
+
+	.extfunc OSWRCH
+	.in (A)
+	.funcaddr $ffee
+	.endextfunc
+
+OPTIMISATIONS
+=============
+
+* automatic removal of CLC/SEC on dead code paths.
+* pull ZP accesses into hardware registers when possible.
+* remove redundant loads/stores

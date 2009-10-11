@@ -29,7 +29,7 @@ let layout env first_pass vpc_start insns =
   insns', last_vpc
 
 let iterate_layout vpc_start insns =
-  let outer_env = Hashtbl.create 10 in
+  let outer_env = Env.new_env () in
   let rec iter first_pass previous_cooked_insns =
     let cooked_insns, last_pc = layout outer_env first_pass vpc_start insns in
     if cooked_insns <> previous_cooked_insns then

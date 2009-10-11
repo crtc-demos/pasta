@@ -119,7 +119,7 @@ let invoke_macros prog macros =
       match insn with
         Expmacro (name, actual_args) ->
 	  let (formal_args, body) = Hashtbl.find macros name in
-	  List.fold_right
+	  let expansion = List.fold_right
 	    (fun body_insn insns ->
 	      match body_insn with
 		Raw_insn (opc, raw_addrmode) ->
@@ -129,7 +129,8 @@ let invoke_macros prog macros =
 		  Raw_insn (opc, raw_addrmode') :: insns
 	      | _ -> body_insn :: insns)
 	    body
-	    insns
+	    [] in
+	  Scope (Env.new_env (), expansion) :: insns
       | _ -> insn :: insns)
     prog
     []

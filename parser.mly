@@ -60,7 +60,7 @@ minsn: i = alu_op EOL
 ;
 
 scope: SCOPE EOL is = insns_in_scope SCEND
-					{ Scope (Hashtbl.create 1, is) }
+					{ Scope (Env.new_env (), is) }
 ;
 
 insns_in_scope: /* nothing */		{ [] }

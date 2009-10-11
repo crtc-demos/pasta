@@ -16,3 +16,5 @@ let replace htstack key valu =
   match htstack with
     [] -> raise Not_found
   | env::_ -> Hashtbl.replace env key valu
+
+let new_env () = Hashtbl.create 10

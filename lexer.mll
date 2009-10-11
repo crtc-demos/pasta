@@ -91,6 +91,8 @@ and token = parse
   | ".dword"		{ DATA 4 }
   | ".macro"		{ MACRO }
   | ".mend"		{ MEND }
+  | ".scope"		{ SCOPE }
+  | ".scend"		{ SCEND }
   | ","			{ COMMA }
   | "#"			{ HASH }
   | ":"			{ COLON }

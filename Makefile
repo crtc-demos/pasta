@@ -11,7 +11,7 @@ COBJ =
 
 # Source plus generated files.
 OCAMLSRC := m6502.ml parser.ml lexer.ml insn.ml as_ld.ml expr.ml encode.ml \
-	    layout.ml
+	    layout.ml env.ml
 
 OCAMLOBJ := $(shell < .depend $(OCAMLDSORT) -byte $(OCAMLSRC))
 
@@ -60,6 +60,7 @@ parser.ml:	insn.cmo
 insn.cmo:	expr.cmo
 insn.cmo:	m6502.cmo
 lexer.cmo:	parser.cmo
+expr.cmo:	env.cmo
 
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),cleaner)

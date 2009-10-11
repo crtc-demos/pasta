@@ -6,8 +6,37 @@ type insn =
   | Insn of opcode * addrmode * int32 array
   | Label of string
   | Data of int * const_expr
+  | Scope of (string, int32) Hashtbl.t * insn list
   | Macrodef of string * string list * insn list
   | Expmacro of string * const_expr list
+
+(* A right-fold where scopes are invisible, but the environment stack gets
+   updated as the tree is traversed.  *)
+
+let rec fold_right_with_env fn outer_env insns acc =
+  let rec foldr env insns acc =
+    match insns with
+      [] -> acc
+    | Scope (inner_env, insns_in_scope)::is ->
+	let inner_acc = foldr (inner_env::env) insns_in_scope acc in
+	foldr env is inner_acc
+    | i::is ->
+	fn env i (foldr env is acc) in
+  foldr outer_env insns acc
+
+(* Similar, but folding left.  *)
+
+let fold_left_with_env fn outer_env acc insns =
+  let rec foldl env acc insns =
+    match insns with
+      [] -> acc
+    | Scope (inner_env, insns_in_scope)::is ->
+        let deeper_env = inner_env::env in
+        let inner_acc = foldl deeper_env acc insns_in_scope in
+	foldl env inner_acc is
+    | i::is ->
+	foldl env (fn env acc i) is in
+  foldl outer_env acc insns
 
 let has_addrmode op am =
   Hashtbl.mem insns_hash (op, am)
@@ -81,6 +110,8 @@ let addrmode_from_raw env first_pass vpc opcode am =
         Accumulator, [| |]
       else
         raise BadAddrmode
+
+(* FIXME: Macros should expand as scopes. *)
 
 let invoke_macros prog macros =
   List.fold_right

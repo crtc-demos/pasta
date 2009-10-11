@@ -10,6 +10,7 @@ open M6502
 %token PLUS MINUS LANGLE RANGLE
 %token X Y A
 %token MACRO MEND
+%token SCOPE SCEND
 %token <M6502.opcode> INSN
 %token <string> LABEL MACROARG EXPMACRO
 %token <int> DATA
@@ -35,7 +36,8 @@ insn: i = alu_op
     | i = label_directive
     | i = data_directive
     | i = expand_macro
-    | i = macro				{ i }
+    | i = macro
+    | i = scope				{ i }
 ;
 
 macro: MACRO l = LABEL args = list(arg) EOL m = macro_seq MEND
@@ -55,6 +57,16 @@ arg: l = LABEL				{ l }
 minsn: i = alu_op EOL
      | i = label_directive EOL
      | i = expand_macro EOL		{ i }
+;
+
+scope: SCOPE EOL is = insns_in_scope SCEND
+					{ Scope (Hashtbl.create 1, is) }
+;
+
+insns_in_scope: /* nothing */		{ [] }
+	      | i = insn EOL is = insns_in_scope
+	      				{ i :: is }
+	      | EOL is = insns_in_scope	{ is }
 ;
 
 alu_op: op = INSN a = am_immediate

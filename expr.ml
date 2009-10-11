@@ -40,12 +40,14 @@ let eval ?env expr =
     | HiByte a -> Int32.logand (Int32.shift_right_logical (eval' a) 8) 0xffl
     | LoByte a -> Int32.logand (eval' a) 0xffl
     | ExLabel lab ->
-	try
+	begin try
 	  match env with
             None -> raise Not_found
-	  | Some e -> Hashtbl.find e lab
+	  | Some e -> Env.find e lab
 	with Not_found ->
-	  raise (Label_not_found lab) in
+	  raise (Label_not_found lab)
+	end
+    | MacroArg _ -> failwith "Can't evaluate macro arg" in
   eval' expr
 
 let eval_int ?env expr =

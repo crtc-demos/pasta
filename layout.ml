@@ -6,42 +6,34 @@ let insn_size = function
   | Insn (opc, adm, _) -> M6502.insn_size opc adm
   | _ -> failwith "Can't find size of insn"
 
-let layout vpc_start insns =
-  let label_locs = Hashtbl.create 100 in
-  let rec scan vpc = function
-    [] -> vpc
-  | insn::insns ->
-      begin match insn with
-        Label foo ->
-	  (* Printf.fprintf stderr "Label '%s' at 0x%x\n" foo vpc; *)
-	  Hashtbl.add label_locs foo (Int32.of_int vpc)
-      | _ -> ()
-      end;
-      scan (vpc + insn_size insn) insns
-  in
-    let last_vpc = scan vpc_start insns in
-    last_vpc, label_locs
+(* Do layout. Convert raw (parsed) insns into "cooked" insns, ready for
+   encoding. Also flatten out nested scopes, and reverse the program so it's in
+   the "correct" order (with the head of the list as the first instruction).  *)
 
-let cook_insns env first_pass vpc_start insns =
-  let insns', _ = List.fold_right
-    (fun insn (insns, vpc) ->
+let layout env first_pass vpc_start insns =
+  let insns', last_vpc = Insn.fold_left_with_env
+    (fun env (insns, vpc) insn ->
       match insn with
         Raw_insn (opcode, raw_addrmode) ->
-          let addrmode, args =
+	  let addrmode, args =
 	    addrmode_from_raw env first_pass vpc opcode raw_addrmode in
 	  let insn_size = M6502.insn_size opcode addrmode in
-          Insn (opcode, addrmode, args) :: insns, vpc + insn_size
+	  Insn (opcode, addrmode, args) :: insns, vpc + insn_size
+      | Label foo ->
+          Env.replace env foo (Int32.of_int vpc);
+	  insns, vpc
       | x -> x :: insns, vpc + (insn_size x))
-    insns
-    ([], 0) in
-  insns'
+    [env]
+    ([], vpc_start)
+    insns in
+  insns', last_vpc
 
 let iterate_layout vpc_start insns =
-  let rec iter first_pass env =
-    let cooked_insns = cook_insns env first_pass vpc_start insns in
-    let last_pc, new_env = layout vpc_start cooked_insns in
-    if env <> new_env then
-      iter false new_env
+  let outer_env = Hashtbl.create 10 in
+  let rec iter first_pass previous_cooked_insns =
+    let cooked_insns, last_pc = layout outer_env first_pass vpc_start insns in
+    if cooked_insns <> previous_cooked_insns then
+      iter false cooked_insns
     else
-      cooked_insns, last_pc, new_env in
-  iter true (Hashtbl.create 1)
+      cooked_insns, last_pc, outer_env in
+  iter true []

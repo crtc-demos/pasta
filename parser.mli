@@ -3,6 +3,8 @@ exception Error
 type token = 
   | Y
   | X
+  | SCOPE
+  | SCEND
   | RBRACKET
   | RANGLE
   | PLUS

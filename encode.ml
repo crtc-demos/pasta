@@ -29,25 +29,29 @@ let output_addrmode fh env vpc addrmode args =
       output_data fh 1 offset'
   | Synth_lbra -> failwith "Synthetic long branches not implemented"
 
-let encode_prog start_vpc env prog =
-  let fo = open_out_bin "a.out" in
-  let last_vpc = List.fold_right
+let rec emit_insns fh start_vpc env insns =
+  List.fold_right
     (fun insn vpc ->
-      begin match insn with
+      match insn with
         Insn (op, addrmode, args) ->
 	  let opcode = M6502.insn_opcode op addrmode in
-	  output_byte fo opcode;
-          output_addrmode fo env vpc addrmode args
+	  output_byte fh opcode;
+          output_addrmode fh env vpc addrmode args;
+	  vpc + Layout.insn_size insn
       | Data (size, cexp) ->
           let d32 = Expr.eval ~env cexp in
-	  output_data fo size d32
-      | Label _ -> ()
+	  output_data fh size d32;
+	  vpc + Layout.insn_size insn
+      | Label _ -> vpc
+      | Scope (inner_env, insns) -> failwith "Can't output scope"
       | Raw_insn _ -> failwith "Can't output raw insn"
       | Macrodef _ -> failwith "Can't output macro definition"
-      | Expmacro _ -> failwith "Can't output macro instantiation"
-      end;
-      vpc + Layout.insn_size insn)
-    prog
-    start_vpc in
+      | Expmacro _ -> failwith "Can't output macro instantiation")
+    insns
+    start_vpc
+
+let encode_prog start_vpc env prog =
+  let fo = open_out_bin "a.out" in
+  let last_vpc = emit_insns fo start_vpc env prog in
   close_out fo;
   last_vpc

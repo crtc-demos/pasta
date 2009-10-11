@@ -34,6 +34,11 @@ let _ =
   let prog = collect_insns frags in
   let macros = collect_macros frags in
   let prog = Insn.invoke_macros prog macros in
+  (* Now, prog is in "reverse" order, i.e. the head of the list contains the
+     last instruction (and the head of each nested scope contains the last
+     instruction of that scope.  *)
   let cooked_prog, _, env  = Layout.iterate_layout 0 prog in
-  ignore (Encode.encode_prog 0 env (List.rev cooked_prog));
+  (* Iterating layout puts the program in the correct order (i.e. with the head
+     of the insn list as the start of the program).  *)
+  ignore (Encode.encode_prog 0 [env] cooked_prog);
   close_in inf

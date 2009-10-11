@@ -10,12 +10,12 @@ OCAMLDSORT = ocamldsort
 COBJ = 
 
 # Source plus generated files.
-OCAMLSRC := m6502.ml parser.ml lexer.ml insn.ml as_ld.ml expr.ml encode.ml \
+OCAMLSRC := m6502.ml parser.ml lexer.ml insn.ml pasta.ml expr.ml encode.ml \
 	    layout.ml env.ml
 
 OCAMLOBJ := $(shell < .depend $(OCAMLDSORT) -byte $(OCAMLSRC))
 
-TARGET = as-ld
+TARGET = pasta
 
 all:	$(TARGET)
 

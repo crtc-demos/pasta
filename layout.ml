@@ -30,6 +30,10 @@ let layout env first_pass vpc_start insns =
       | Label foo ->
           Env.replace env foo (Int32.of_int vpc);
 	  insns, vpc
+      | Alias (label, cexp) ->
+          let cst = Expr.eval ~env cexp in
+	  Env.replace env label cst;
+	  insns, vpc
       | x -> x :: insns, vpc + (insn_size x))
     [env]
     ([], vpc_start)

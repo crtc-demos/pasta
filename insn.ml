@@ -5,6 +5,7 @@ type insn =
     Raw_insn of opcode * raw_addrmode
   | Insn of opcode * addrmode * int32 array
   | Label of string
+  | Alias of string * const_expr
   | Data of int * const_expr list
   | Ascii of ascii_part list
   | Origin of const_expr
@@ -93,6 +94,11 @@ let addrmode_from_raw env first_pass vpc opcode am =
         Absolute_Y, [| addr |]
       else
         raise BadAddrmode
+  | Raw_indirect n ->
+      if has_addrmode opcode Indirect then
+        Indirect, [| eval_addr n |]
+      else
+        raise BadAddrmode
   | Raw_x_indirect n ->
       if has_addrmode opcode X_Indirect then
         X_Indirect, [| eval_addr n |]
@@ -116,11 +122,11 @@ let addrmode_from_raw env first_pass vpc opcode am =
       else
         raise BadAddrmode
 
-(* FIXME: Macros should expand as scopes. *)
+(* Expand macros once in PROG.  *)
 
-let invoke_macros prog macros =
+let rec invoke_macros_once prog macros =
   List.fold_right
-    (fun insn insns ->
+    (fun insn (expanded, insns) ->
       match insn with
         Expmacro (name, actual_args) ->
 	  let (formal_args, body) = Hashtbl.find macros name in
@@ -135,7 +141,19 @@ let invoke_macros prog macros =
 	      | _ -> body_insn :: insns)
 	    body
 	    [] in
-	  Scope (Env.new_env (), expansion) :: insns
-      | _ -> insn :: insns)
+	  true, Scope (Env.new_env (), expansion) :: insns
+      | Scope (nested_env, body) ->
+          let expanded', body' = invoke_macros_once body macros in
+	  expanded', Scope (nested_env, body') :: insns
+      | _ -> expanded, insn :: insns)
     prog
-    []
+    (false, [])
+
+(* Iteratively expand macros in PROG.  *)
+
+let rec invoke_macros prog macros =
+  let expanded, prog' = invoke_macros_once prog macros in
+  if expanded then
+    invoke_macros prog' macros
+  else
+    prog'

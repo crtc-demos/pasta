@@ -19,6 +19,7 @@ type raw_addrmode = Raw_immediate of Expr.const_expr
                   | Raw_num of Expr.const_expr
 		  | Raw_num_x of Expr.const_expr
 		  | Raw_num_y of Expr.const_expr
+		  | Raw_indirect of Expr.const_expr
 		  | Raw_x_indirect of Expr.const_expr
 		  | Raw_indirect_y of Expr.const_expr
 		  | Raw_accumulator
@@ -31,6 +32,8 @@ type opcode = Adc | And | Asl | Bcc | Bcs | Beq | Bit | Bmi
             | Lsr | Nop | Ora | Pha | Php | Pla | Plp | Rol
             | Ror | Rti | Rts | Sbc | Sec | Sed | Sei | Sta
             | Stx | Sty | Tax | Tay | Txa | Tsx | Txs | Tya
+	    (* 65C02 *)
+	    | Bra | Phx | Phy | Plx | Ply | Stz | Trb | Tsb
 
 type cycle = Fixed of int
            | Page_Plus of int
@@ -45,6 +48,7 @@ let insns =
    Adc, Absolute_Y,  0x79, 3, Page_Plus 4;
    Adc, X_Indirect,  0x61, 2, Fixed 6;
    Adc, Indirect_Y,  0x71, 2, Page_Plus 5;
+   Adc, Indirect,    0x72, 2, Fixed 5;  (* 65C02 *)
    
    And, Immediate,   0x29, 2, Fixed 2;
    And, Zeropage,    0x25, 2, Fixed 3;
@@ -54,6 +58,7 @@ let insns =
    And, Absolute_Y,  0x39, 3, Page_Plus 4;
    And, X_Indirect,  0x21, 2, Fixed 6;
    And, Indirect_Y,  0x31, 2, Page_Plus 5;
+   And, Indirect,    0x32, 2, Fixed 5;  (* 65C02 *)
    
    Asl, Accumulator, 0x0a, 1, Fixed 2;
    Asl, Zeropage,    0x06, 2, Fixed 5;
@@ -69,6 +74,7 @@ let insns =
    Bpl, Relative,    0x10, 2, Branch_Plus 2;
    Bvc, Relative,    0x50, 2, Branch_Plus 2;
    Bvs, Relative,    0x70, 2, Branch_Plus 2;
+   Bra, Relative,    0x80, 2, Branch_Plus 3;  (* 65C02 *)
 
    (* Synthetic long branch instructions. Not sure if these are a good idea. *)
    Bcc, Synth_lbra,  0x90, 5, Branch_Plus 2;
@@ -79,9 +85,13 @@ let insns =
    Bpl, Synth_lbra,  0x10, 5, Branch_Plus 2;
    Bvc, Synth_lbra,  0x50, 5, Branch_Plus 2;
    Bvs, Synth_lbra,  0x70, 5, Branch_Plus 2;
+   Bra, Synth_lbra,  0x80, 5, Branch_Plus 3;  (* 65C02 *)
 
    Bit, Zeropage,    0x24, 2, Fixed 3;
    Bit, Absolute,    0x2c, 3, Fixed 4;
+   Bit, Immediate,   0x89, 2, Fixed 2;      (* 65C02 *)
+   Bit, Zeropage_X,  0x34, 2, Fixed 4;      (* 65C02 *)
+   Bit, Absolute_X,  0x3c, 3, Page_Plus 4;  (* 65C02 *)
    
    Brk, Implied,     0x00, 1, Fixed 7;
    
@@ -98,6 +108,7 @@ let insns =
    Cmp, Absolute_Y,  0xd9, 3, Page_Plus 4;
    Cmp, X_Indirect,  0xc1, 2, Fixed 6;
    Cmp, Indirect_Y,  0xd1, 2, Page_Plus 5;
+   Cmp, Indirect,    0xd2, 2, Fixed 5;  (* 65C02 *)
    
    Cpx, Immediate,   0xe0, 2, Fixed 2;
    Cpx, Zeropage,    0xe4, 2, Fixed 3;
@@ -111,6 +122,7 @@ let insns =
    Dec, Zeropage_X,  0xd6, 2, Fixed 6;
    Dec, Absolute,    0xce, 3, Fixed 3;
    Dec, Absolute_X,  0xde, 3, Fixed 7;
+   Dec, Accumulator, 0x3a, 1, Fixed 2;  (* 65C02 *)
    
    Dex, Implied,     0xca, 1, Fixed 2;
    Dey, Implied,     0x88, 1, Fixed 2;
@@ -123,17 +135,20 @@ let insns =
    Eor, Absolute_Y,  0x59, 3, Page_Plus 4;
    Eor, X_Indirect,  0x41, 2, Fixed 6;
    Eor, Indirect_Y,  0x51, 2, Page_Plus 5;
+   Eor, Indirect,    0x52, 2, Fixed 5;  (* 65C02 *)
 
    Inc, Zeropage,    0xe6, 2, Fixed 5;
    Inc, Zeropage_X,  0xf6, 2, Fixed 6;
    Inc, Absolute,    0xee, 3, Fixed 6;
    Inc, Absolute_X,  0xfe, 3, Fixed 7;
+   Inc, Accumulator, 0x1a, 1, Fixed 2;  (* 65C02 *)
    
    Inx, Implied,     0xe8, 1, Fixed 2;
    Iny, Implied,     0xc8, 1, Fixed 2;
    
    Jmp, Absolute,    0x4c, 3, Fixed 3;
    Jmp, Indirect,    0x6c, 3, Fixed 5;
+   Jmp, X_Indirect,  0x7c, 3, Fixed 6;  (* 65C02 *)
    
    Jsr, Absolute,    0x20, 3, Fixed 6;
    
@@ -145,6 +160,7 @@ let insns =
    Lda, Absolute_Y,  0xb9, 3, Page_Plus 4;
    Lda, X_Indirect,  0xa1, 2, Fixed 6;
    Lda, Indirect_Y,  0xb1, 2, Page_Plus 5;
+   Lda, Indirect,    0xb2, 2, Fixed 5;  (* 65C02 *)
 
    Ldx, Immediate,   0xa2, 2, Fixed 2;
    Ldx, Zeropage,    0xa6, 2, Fixed 3;
@@ -174,11 +190,16 @@ let insns =
    Ora, Absolute_Y,  0x19, 3, Page_Plus 4;
    Ora, X_Indirect,  0x01, 2, Fixed 6;
    Ora, Indirect_Y,  0x11, 2, Page_Plus 5;
+   Ora, Indirect,    0x12, 2, Fixed 5;  (* 65C02 *)
 
    Pha, Implied,     0x48, 1, Fixed 3;
    Php, Implied,     0x08, 1, Fixed 3;
+   Phx, Implied,     0xda, 1, Fixed 3;  (* 65C02 *)
+   Phy, Implied,     0x5a, 1, Fixed 3;  (* 65C02 *)
    Pla, Implied,     0x68, 1, Fixed 4;
    Plp, Implied,     0x28, 1, Fixed 4;
+   Plx, Implied,     0xfa, 1, Fixed 4;  (* 65C02 *)
+   Ply, Implied,     0x7a, 1, Fixed 4;  (* 65C02 *)
 
    Rol, Accumulator, 0x2a, 1, Fixed 2;
    Rol, Zeropage,    0x26, 2, Fixed 5;
@@ -203,6 +224,7 @@ let insns =
    Sbc, Absolute_Y,  0xf9, 3, Page_Plus 4;
    Sbc, X_Indirect,  0xe1, 2, Fixed 6;
    Sbc, Indirect_Y,  0xf1, 2, Page_Plus 5;
+   Sbc, Indirect,    0xf2, 2, Fixed 5;  (* 65C02 *)
 
    Sec, Implied,     0x38, 1, Fixed 2;
    Sed, Implied,     0xf8, 1, Fixed 2;
@@ -215,6 +237,7 @@ let insns =
    Sta, Absolute_Y,  0x99, 3, Fixed 5;
    Sta, X_Indirect,  0x81, 2, Fixed 6;
    Sta, Indirect_Y,  0x91, 2, Fixed 6;
+   Sta, Indirect,    0x92, 2, Fixed 5;  (* 65C02 *)
 
    Stx, Zeropage,    0x86, 2, Fixed 3;
    Stx, Zeropage_Y,  0x96, 2, Fixed 4;
@@ -223,6 +246,17 @@ let insns =
    Sty, Zeropage,    0x84, 2, Fixed 3;
    Sty, Zeropage_X,  0x94, 2, Fixed 4;
    Sty, Absolute,    0x8c, 3, Fixed 4;
+   
+   Stz, Zeropage,    0x64, 2, Fixed 3;  (* 65C02 *)
+   Stz, Zeropage_X,  0x74, 2, Fixed 4;  (* 65C02 *)
+   Stz, Absolute,    0x9c, 3, Fixed 4;  (* 65C02 *)
+   Stz, Absolute_X,  0x9e, 3, Fixed 5;  (* 65C02 *)
+   
+   Trb, Zeropage,    0x14, 2, Fixed 5;  (* 65C02 *)
+   Trb, Absolute,    0x1c, 3, Fixed 6;  (* 65C02 *)
+   
+   Tsb, Zeropage,    0x04, 2, Fixed 5;  (* 65C02 *)
+   Tsb, Absolute,    0x0c, 3, Fixed 6;  (* 65C02 *)
    
    Tax, Implied,     0xaa, 1, Fixed 2;
    Tay, Implied,     0xa8, 1, Fixed 2;
@@ -263,6 +297,7 @@ let raw_addrmode_expr_fn fn = function
   | Raw_num e -> Raw_num (fn e)
   | Raw_num_x e -> Raw_num_x (fn e)
   | Raw_num_y e -> Raw_num_y (fn e)
+  | Raw_indirect e -> Raw_indirect (fn e)
   | Raw_x_indirect e -> Raw_x_indirect (fn e)
   | Raw_indirect_y e -> Raw_indirect_y (fn e)
   | (Raw_accumulator | Raw_implied) as r -> r

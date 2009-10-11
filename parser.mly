@@ -6,12 +6,12 @@ open M6502
 %}
 
 %token COMMA EOL EOF HASH COLON
-%token LBRACKET RBRACKET
-%token PLUS MINUS LANGLE RANGLE
+%token LBRACKET RBRACKET LSQUARE RSQUARE
+%token PLUS MINUS TIMES DIVIDE LANGLE RANGLE
 %token X Y A
 %token MACRO MEND
 %token SCOPE SCEND
-%token ORIGIN ASCII
+%token ORIGIN ASCII ALIAS
 %token <M6502.opcode> INSN
 %token <string> LABEL MACROARG EXPMACRO STRING
 %token <int> DATA
@@ -19,6 +19,8 @@ open M6502
 
 %nonassoc LANGLE
 %nonassoc RANGLE
+%left TIMES
+%left DIVIDE
 %left PLUS
 %left MINUS
 
@@ -33,10 +35,15 @@ insn_seq: EOF				{ [] }
 	| EOL is = insn_seq		{ is }
 ;
 
+maybe_eol: /* nothing */
+	 | EOL				{ }
+;
+
 insn: i = alu_op
     | i = label_directive
     | i = data_directive
     | i = ascii_directive
+    | i = alias_directive
     | i = origin_directive
     | i = expand_macro
     | i = macro
@@ -58,7 +65,7 @@ arg: l = LABEL				{ l }
 ;
 
 minsn: i = alu_op EOL
-     | i = label_directive EOL
+     | i = label_directive maybe_eol
      | i = expand_macro EOL		{ i }
 ;
 
@@ -76,6 +83,7 @@ alu_op: op = INSN a = am_immediate
       | op = INSN a = am_num
       | op = INSN a = am_num_x
       | op = INSN a = am_num_y
+      | op = INSN a = am_indirect
       | op = INSN a = am_x_indirect
       | op = INSN a = am_indirect_y
       | op = INSN a = am_accumulator
@@ -92,6 +100,9 @@ am_num_x: n = num COMMA X		{ Raw_num_x n }
 ;
 
 am_num_y: n = num COMMA Y		{ Raw_num_y n }
+;
+
+am_indirect: LBRACKET n = num RBRACKET	{ Raw_indirect n }
 ;
 
 am_x_indirect: LBRACKET n = num COMMA X RBRACKET
@@ -123,6 +134,10 @@ ascitem: n = num			{ AscChar n }
        | s = STRING			{ AscString s }
 ;
 
+alias_directive: ALIAS l = LABEL n = num
+					{ Alias (l, n) }
+;
+
 origin_directive: ORIGIN n = num	{ Origin n }
 ;
 
@@ -136,11 +151,14 @@ param: n = num				{ n }
 num: n = NUM				{ Expr.Int n }
    | a = num PLUS b = num		{ Expr.Plus (a, b) }
    | a = num MINUS b = num		{ Expr.Minus (a, b) }
+   | a = num TIMES b = num		{ Expr.Times (a, b) }
+   | a = num DIVIDE b = num		{ Expr.Divide (a, b) }
    | MINUS a = num			{ Expr.Uminus a }
    | LANGLE a = num			{ Expr.LoByte a }
    | RANGLE a = num			{ Expr.HiByte a }
    | lab = LABEL			{ Expr.ExLabel lab }
    | mac = MACROARG			{ Expr.MacroArg mac }
+   | LSQUARE n = num RSQUARE		{ n }
 ;
 
 %%

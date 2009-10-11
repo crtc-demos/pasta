@@ -2,6 +2,8 @@ type const_expr =
     Int of int32
   | Plus of const_expr * const_expr
   | Minus of const_expr * const_expr
+  | Times of const_expr * const_expr
+  | Divide of const_expr * const_expr
   | Uminus of const_expr
   | LoByte of const_expr
   | HiByte of const_expr
@@ -14,6 +16,8 @@ let rec map_expr fn = function
     (Int _ | ExLabel _ | MacroArg _) as e -> fn e
   | Plus (a, b) -> fn (Plus (map_expr fn a, map_expr fn b))
   | Minus (a, b) -> fn (Minus (map_expr fn a, map_expr fn b))
+  | Times (a, b) -> fn (Times (map_expr fn a, map_expr fn b))
+  | Divide (a, b) -> fn (Divide (map_expr fn a, map_expr fn b))
   | Uminus a -> fn (Uminus (map_expr fn a))
   | LoByte a -> fn (LoByte (map_expr fn a))
   | HiByte a -> fn (HiByte (map_expr fn a))
@@ -36,6 +40,8 @@ let eval ?env expr =
       Int i -> i
     | Plus (a, b) -> Int32.add (eval' a) (eval' b)
     | Minus (a, b) -> Int32.sub (eval' a) (eval' b)
+    | Times (a, b) -> Int32.mul (eval' a) (eval' b)
+    | Divide (a, b) -> Int32.div (eval' a) (eval' b)
     | Uminus a -> Int32.neg (eval' a)
     | HiByte a -> Int32.logand (Int32.shift_right_logical (eval' a) 8) 0xffl
     | LoByte a -> Int32.logand (eval' a) 0xffl

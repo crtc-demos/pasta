@@ -32,7 +32,14 @@ let extract_origin prog =
     (0, [])
 
 let _ =
-  let inf = open_in Sys.argv.(1) in
+  let infile = ref "" and outfile = ref "a.out" in
+  let argspec =
+    ["-o", Arg.Set_string outfile, "Set output file"]
+  and usage = "Usage: pasta -o <output> <input>" in
+  Arg.parse argspec (fun i -> infile := i) usage;
+  if !infile = "" then
+    Arg.usage argspec usage;
+  let inf = open_in !infile in
   let stdinbuf = Lexing.from_channel inf in
   let frags =
     try
@@ -55,5 +62,5 @@ let _ =
   let cooked_prog, _, env  = Layout.iterate_layout origin prog in
   (* Iterating layout puts the program in the correct order (i.e. with the head
      of the insn list as the start of the program).  *)
-  ignore (Encode.encode_prog origin [env] cooked_prog);
+  ignore (Encode.encode_prog origin [env] cooked_prog !outfile);
   close_in inf

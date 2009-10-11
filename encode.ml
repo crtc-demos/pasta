@@ -59,6 +59,7 @@ let rec emit_insns fh start_vpc env insns =
 	    al;
 	  vpc + Layout.insn_size insn
       | Label _ -> vpc
+      | Alias _ -> failwith "Can't output alias"
       | Scope (inner_env, insns) -> failwith "Can't output scope"
       | Raw_insn _ -> failwith "Can't output raw insn"
       | Macrodef _ -> failwith "Can't output macro definition"
@@ -67,8 +68,8 @@ let rec emit_insns fh start_vpc env insns =
     insns
     start_vpc
 
-let encode_prog start_vpc env prog =
-  let fo = open_out_bin "a.out" in
+let encode_prog start_vpc env prog outfile =
+  let fo = open_out_bin outfile in
   let last_vpc = emit_insns fo start_vpc env prog in
   close_out fo;
   last_vpc

@@ -16,6 +16,7 @@
         saw_backslash := false;
         match s.[i] with
           '\"' -> Buffer.add_char b '\"'
+	| '\'' -> Buffer.add_char b '\''
 	| '\\' -> Buffer.add_char b '\\'
 	| 'n' -> Buffer.add_char b '\n'
 	| 'r' -> Buffer.add_char b '\r'
@@ -86,7 +87,16 @@
        "txa",		Txa;
        "tya",		Tya;
        "tsx",		Tsx;
-       "txs",		Txs];
+       "txs",		Txs;
+       (* 65C02 *)
+       "bra",		Bra;
+       "phx",		Phx;
+       "phy",		Phy;
+       "plx",		Plx;
+       "ply",		Ply;
+       "stz",		Stz;
+       "trb",		Trb;
+       "tsb",		Tsb];
     tokens'
 }
 
@@ -103,6 +113,7 @@ let insn = "adc" | "and" | "asl" | "bcc" | "bcs" | "beq" | "bit" | "bmi"
 	 | "lsr" | "nop" | "ora" | "pha" | "php" | "pla" | "plp" | "rol"
 	 | "ror" | "rti" | "rts" | "sbc" | "sec" | "sed" | "sei" | "sta"
 	 | "stx" | "sty" | "tax" | "tay" | "txa" | "tsx" | "txs" | "tya"
+	 | "bra" | "phx" | "phy" | "plx" | "ply" | "stz" | "trb" | "tsb"
 
 rule line = parse
     (([^'\n']*) '\n') as line	{ Some line }
@@ -116,6 +127,8 @@ and token = parse
   | "$" (hexdigit+ as hexnum)
 			{ NUM (Int32.of_string ("0x" ^ hexnum)) }
   | num as num		{ NUM (Int32.of_string num) }
+  | "'" (([^'\''] | '\\' ['n' 'r' 't' '\\' '\'' '\"']) as ch) "'"
+  			{ NUM (Int32.of_int (Char.code ((dequote ch).[0]))) }
   | insn as insn	{ INSN (Hashtbl.find tokens insn) }
   | ".byte"		{ DATA 1 }
   | ".word"		{ DATA 2 }
@@ -127,15 +140,20 @@ and token = parse
   | ".scope"		{ SCOPE }
   | ".scend"		{ SCEND }
   | ".org"		{ ORIGIN }
+  | ".alias"		{ ALIAS }
   | ","			{ COMMA }
   | "#"			{ HASH }
   | ":"			{ COLON }
   | "+"			{ PLUS }
   | "-"			{ MINUS }
+  | "*"			{ TIMES }
+  | "/"			{ DIVIDE }
   | "<"			{ LANGLE }
   | ">"			{ RANGLE }
   | "("			{ LBRACKET }
   | ")"			{ RBRACKET }
+  | "["			{ LSQUARE }
+  | "]"			{ RSQUARE }
   | "x"			{ X }
   | "y"			{ Y }
   | "a"			{ A }

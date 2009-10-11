@@ -3,9 +3,11 @@ exception Error
 type token = 
   | Y
   | X
+  | TIMES
   | STRING of (string)
   | SCOPE
   | SCEND
+  | RSQUARE
   | RBRACKET
   | RANGLE
   | PLUS
@@ -15,6 +17,7 @@ type token =
   | MEND
   | MACROARG of (string)
   | MACRO
+  | LSQUARE
   | LBRACKET
   | LANGLE
   | LABEL of (string)
@@ -23,10 +26,12 @@ type token =
   | EXPMACRO of (string)
   | EOL
   | EOF
+  | DIVIDE
   | DATA of (int)
   | COMMA
   | COLON
   | ASCII
+  | ALIAS
   | A
 
 

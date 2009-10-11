@@ -2,7 +2,15 @@ open Insn
 
 let insn_size = function
     Label _ -> 0
-  | Data (n, _) -> n
+  | Data (n, dl) -> n * List.length dl
+  | Ascii al ->
+      List.fold_right
+	(fun part sz ->
+          match part with
+	    AscChar _ -> sz + 1
+	  | AscString s -> sz + String.length s)
+	al
+	0
   | Insn (opc, adm, _) -> M6502.insn_size opc adm
   | _ -> failwith "Can't find size of insn"
 

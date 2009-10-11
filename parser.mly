@@ -11,8 +11,9 @@ open M6502
 %token X Y A
 %token MACRO MEND
 %token SCOPE SCEND
+%token ORIGIN ASCII
 %token <M6502.opcode> INSN
-%token <string> LABEL MACROARG EXPMACRO
+%token <string> LABEL MACROARG EXPMACRO STRING
 %token <int> DATA
 %token <int32> NUM
 
@@ -35,6 +36,8 @@ insn_seq: EOF				{ [] }
 insn: i = alu_op
     | i = label_directive
     | i = data_directive
+    | i = ascii_directive
+    | i = origin_directive
     | i = expand_macro
     | i = macro
     | i = scope				{ i }
@@ -108,7 +111,19 @@ am_implied:				{ Raw_implied }
 label_directive: lab = LABEL COLON	{ Label lab }
 ;
 
-data_directive: sz = DATA n = num	{ Data (sz, n) }
+data_directive: sz = DATA n = separated_list(COMMA, num)
+					{ Data (sz, n) }
+;
+
+ascii_directive: ASCII n = separated_list(COMMA, ascitem)
+					{ Ascii n }
+;
+
+ascitem: n = num			{ AscChar n }
+       | s = STRING			{ AscString s }
+;
+
+origin_directive: ORIGIN n = num	{ Origin n }
 ;
 
 expand_macro: m = EXPMACRO al = separated_list(COMMA, param)

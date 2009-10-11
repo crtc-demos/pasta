@@ -3,11 +3,13 @@ exception Error
 type token = 
   | Y
   | X
+  | STRING of (string)
   | SCOPE
   | SCEND
   | RBRACKET
   | RANGLE
   | PLUS
+  | ORIGIN
   | NUM of (int32)
   | MINUS
   | MEND
@@ -24,6 +26,7 @@ type token =
   | DATA of (int)
   | COMMA
   | COLON
+  | ASCII
   | A
 
 

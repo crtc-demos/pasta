@@ -17,6 +17,20 @@ let collect_macros prog =
     prog;
   ht
 
+(* Find the origin.  Return (origin, prog') where prog' is the input program
+   with .org directives removed.
+   If this is called with "prog" in reverse order, the first .org will be the
+   one used, and later settings will be ignored.  Could be an error instead.  *)
+
+let extract_origin prog =
+  List.fold_right
+    (fun insn (org, insns) ->
+      match insn with
+        Insn.Origin x -> Int32.to_int (Expr.eval x), insns
+      | x -> org, x::insns)
+    prog
+    (0, [])
+
 let _ =
   let inf = open_in Sys.argv.(1) in
   let stdinbuf = Lexing.from_channel inf in
@@ -34,11 +48,12 @@ let _ =
   let prog = collect_insns frags in
   let macros = collect_macros frags in
   let prog = Insn.invoke_macros prog macros in
+  let origin, prog = extract_origin prog in
   (* Now, prog is in "reverse" order, i.e. the head of the list contains the
      last instruction (and the head of each nested scope contains the last
      instruction of that scope.  *)
-  let cooked_prog, _, env  = Layout.iterate_layout 0 prog in
+  let cooked_prog, _, env  = Layout.iterate_layout origin prog in
   (* Iterating layout puts the program in the correct order (i.e. with the head
      of the insn list as the start of the program).  *)
-  ignore (Encode.encode_prog 0 [env] cooked_prog);
+  ignore (Encode.encode_prog origin [env] cooked_prog);
   close_in inf

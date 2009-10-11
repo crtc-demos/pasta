@@ -5,10 +5,15 @@ type insn =
     Raw_insn of opcode * raw_addrmode
   | Insn of opcode * addrmode * int32 array
   | Label of string
-  | Data of int * const_expr
+  | Data of int * const_expr list
+  | Ascii of ascii_part list
+  | Origin of const_expr
   | Scope of (string, int32) Hashtbl.t * insn list
   | Macrodef of string * string list * insn list
   | Expmacro of string * const_expr list
+
+and ascii_part = AscString of string
+               | AscChar of const_expr
 
 (* A right-fold where scopes are invisible, but the environment stack gets
    updated as the tree is traversed.  *)

@@ -38,15 +38,32 @@ let rec emit_insns fh start_vpc env insns =
 	  output_byte fh opcode;
           output_addrmode fh env vpc addrmode args;
 	  vpc + Layout.insn_size insn
-      | Data (size, cexp) ->
-          let d32 = Expr.eval ~env cexp in
-	  output_data fh size d32;
+      | Data (size, cexplist) ->
+          List.iter
+	    (fun cexp ->
+	      let d32 = Expr.eval ~env cexp in
+	      output_data fh size d32)
+	    cexplist;
+	  vpc + Layout.insn_size insn
+      | Ascii al ->
+	  List.iter
+	    (function
+	        AscChar c ->
+		  let d32 = Expr.eval ~env c in
+		  output_data fh 1 d32
+	      | AscString s ->
+		  for i = 0 to String.length s - 1 do
+		    let code = Char.code s.[i] in
+		    output_data fh 1 (Int32.of_int code)
+		  done)
+	    al;
 	  vpc + Layout.insn_size insn
       | Label _ -> vpc
       | Scope (inner_env, insns) -> failwith "Can't output scope"
       | Raw_insn _ -> failwith "Can't output raw insn"
       | Macrodef _ -> failwith "Can't output macro definition"
-      | Expmacro _ -> failwith "Can't output macro instantiation")
+      | Expmacro _ -> failwith "Can't output macro instantiation"
+      | Origin _ -> failwith "Can't output origin")
     insns
     start_vpc
 

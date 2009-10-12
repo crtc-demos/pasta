@@ -37,8 +37,10 @@ let _ =
     ["-o", Arg.Set_string outfile, "Set output file"]
   and usage = "Usage: pasta -o <output> <input>" in
   Arg.parse argspec (fun i -> infile := i) usage;
-  if !infile = "" then
+  if !infile = "" then begin
     Arg.usage argspec usage;
+    exit 1
+  end;
   let inf = open_in !infile in
   let stdinbuf = Lexing.from_channel inf in
   let frags =

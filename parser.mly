@@ -19,10 +19,8 @@ open M6502
 
 %nonassoc LANGLE
 %nonassoc RANGLE
-%left TIMES
-%left DIVIDE
-%left PLUS
-%left MINUS
+%left PLUS MINUS
+%left TIMES DIVIDE
 
 %type <Expr.const_expr> num
 

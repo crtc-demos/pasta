@@ -8,13 +8,21 @@ type insn =
   | Alias of string * const_expr
   | Data of int * const_expr list
   | Ascii of ascii_part list
+  | DataBlock of const_expr * const_expr
   | Origin of const_expr
   | Scope of (string, int32) Hashtbl.t * insn list
+  | Context of (string, int32) Hashtbl.t * string * insn list
+  | Temps of temp_spec list
+  | NoTemps of string list
   | Macrodef of string * string list * insn list
   | Expmacro of string * const_expr list
+  | DeclVars of int * string list
 
 and ascii_part = AscString of string
                | AscChar of const_expr
+
+and temp_spec = OneTemp of const_expr
+	      | TempRange of const_expr * const_expr
 
 (* A right-fold where scopes are invisible, but the environment stack gets
    updated as the tree is traversed.  *)
@@ -25,6 +33,9 @@ let rec fold_right_with_env fn outer_env insns acc =
       [] -> acc
     | Scope (inner_env, insns_in_scope)::is ->
 	let inner_acc = foldr (inner_env::env) insns_in_scope acc in
+	foldr env is inner_acc
+    | Context (inner_env, ctxname, insns_in_ctx)::is ->
+        let inner_acc = foldr (inner_env::env) insns_in_ctx acc in
 	foldr env is inner_acc
     | i::is ->
 	fn env i (foldr env is acc) in
@@ -40,9 +51,28 @@ let fold_left_with_env fn outer_env acc insns =
         let deeper_env = inner_env::env in
         let inner_acc = foldl deeper_env acc insns_in_scope in
 	foldl env inner_acc is
+    | Context (inner_env, ctxname, insns_in_ctx)::is ->
+	let deeper_env = inner_env::env in
+	let inner_acc = foldl deeper_env acc insns_in_ctx in
+	foldl env inner_acc is
     | i::is ->
 	foldl env (fn env acc i) is in
   foldl outer_env acc insns
+
+let iter_with_context fn insns =
+  let rec iter ctx insns =
+    match insns with
+      [] -> ()
+    | Scope (_, insns_in_scope)::is ->
+        iter ctx insns_in_scope;
+	iter ctx is
+    | Context (_, ctxname, insns_in_ctx)::is ->
+        iter (ctxname::ctx) insns_in_ctx;
+	iter ctx is
+    | i::is ->
+        fn ctx i;
+	iter ctx is in
+  iter [] insns
 
 let has_addrmode op am =
   Hashtbl.mem insns_hash (op, am)
@@ -122,7 +152,8 @@ let addrmode_from_raw env first_pass vpc opcode am =
       else
         raise BadAddrmode
 
-(* Expand macros once in PROG.  *)
+(* Expand macros once in PROG.  Note macros are expanded in nested scopes at
+   their points of invocation.  *)
 
 let rec invoke_macros_once prog macros =
   List.fold_right
@@ -145,6 +176,9 @@ let rec invoke_macros_once prog macros =
       | Scope (nested_env, body) ->
           let expanded', body' = invoke_macros_once body macros in
 	  expanded', Scope (nested_env, body') :: insns
+      | Context (nested_env, ctxname, body) ->
+	  let expanded', body' = invoke_macros_once body macros in
+	  expanded', Context (nested_env, ctxname, body') :: insns
       | _ -> expanded, insn :: insns)
     prog
     (false, [])
@@ -157,3 +191,44 @@ let rec invoke_macros prog macros =
     invoke_macros prog' macros
   else
     prog'
+
+exception UnhandledJump
+
+let context_from_expr caller expr =
+  match expr with
+    Expr.ExLabel lab when Context.ctxs#mem [lab] -> [lab]
+  | Expr.ExLabel lab when (Context.ctxs#get caller)#defines_label lab ->
+      Printf.printf "Context %s has internal calls\n"
+        (Context.to_string caller);
+      raise Not_found
+  | x ->
+      Printf.printf "Context %s may not call %s\n" (Context.to_string caller)
+        (Expr.to_string x);
+      raise UnhandledJump
+
+(* Find the dependencies of contexts upon other contexts.  *)
+
+let find_dependencies prog =
+  iter_with_context
+    (fun ctx i ->
+      match ctx, i with
+        [], _ -> ()
+      | _, Raw_insn (opcode, rawaddrmode) ->
+	  begin match opcode, rawaddrmode with
+	    Jsr, Raw_num dest
+	  | Jmp, Raw_num dest ->
+	      begin try
+	        let dctx = context_from_expr ctx dest in
+		Printf.printf "Context %s calls %s\n" (Context.to_string ctx)
+			      (Context.to_string dctx)
+	      with Not_found ->
+	        ()
+	      end
+	  | Jmp, x ->
+	      Printf.printf "Context %s has unsupported jump\n"
+	        (Context.to_string ctx);
+	      raise UnhandledJump
+	  | _ -> ()
+	  end
+      | _ -> ())
+    prog

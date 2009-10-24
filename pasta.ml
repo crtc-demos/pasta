@@ -2,7 +2,9 @@ let collect_insns prog =
   List.fold_right
     (fun frag acc ->
       match frag with
-        Insn.Macrodef _ -> acc
+        Insn.Macrodef _
+      | Insn.DeclVars _
+      | Insn.Temps _ -> acc
       | x -> x :: acc)
     prog
     []
@@ -16,6 +18,35 @@ let collect_macros prog =
       | _ -> ())
     prog;
   ht
+
+let collect_contexts prog =
+  Insn.iter_with_context
+    (fun ctx i ->
+      Context.ctxs#add ctx;
+      match i with
+        Insn.Label lab -> (Context.ctxs#get ctx)#add_label lab
+      | _ -> ())
+    prog
+
+(* For "notemps" declarations, add dummy contexts.  *)
+
+let collect_notemps prog =
+  Insn.iter_with_context
+    (fun _ i ->
+      match i with
+        Insn.NoTemps labels ->
+	  List.iter (fun lab -> Context.ctxs#add [lab]) labels
+      | _ -> ())
+    prog
+
+let collect_vars prog =
+  Insn.iter_with_context
+    (fun ctx i ->
+      match i with
+        Insn.DeclVars (sz, names) -> ()
+      | _ -> ())
+    prog;
+  ()
 
 (* Find the origin.  Return (origin, prog') where prog' is the input program
    with .org directives removed.
@@ -58,6 +89,10 @@ let _ =
   let macros = collect_macros frags in
   let prog = Insn.invoke_macros prog macros in
   let origin, prog = extract_origin prog in
+  collect_contexts frags;
+  collect_notemps frags;
+  Insn.find_dependencies frags;
+  let contexts = collect_vars frags in
   (* Now, prog is in "reverse" order, i.e. the head of the list contains the
      last instruction (and the head of each nested scope contains the last
      instruction of that scope.  *)

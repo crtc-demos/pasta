@@ -37,14 +37,14 @@ let rec emit_insns fh start_vpc env insns =
 	  let opcode = M6502.insn_opcode op addrmode in
 	  output_byte fh opcode;
           output_addrmode fh env vpc addrmode args;
-	  vpc + Layout.insn_size insn
+	  vpc + Layout.insn_size env insn
       | Data (size, cexplist) ->
           List.iter
 	    (fun cexp ->
 	      let d32 = Expr.eval ~env cexp in
 	      output_data fh size d32)
 	    cexplist;
-	  vpc + Layout.insn_size insn
+	  vpc + Layout.insn_size env insn
       | Ascii al ->
 	  List.iter
 	    (function
@@ -57,14 +57,22 @@ let rec emit_insns fh start_vpc env insns =
 		    output_data fh 1 (Int32.of_int code)
 		  done)
 	    al;
-	  vpc + Layout.insn_size insn
+	  vpc + Layout.insn_size env insn
+      | DataBlock (numexp, bvalexp) ->
+          let num = Int32.to_int (Expr.eval ~env numexp)
+	  and bval = Expr.eval ~env bvalexp in
+          for i = 0 to num - 1 do
+	    output_data fh 1 bval
+	  done;
+	  vpc + num
       | Label _ -> vpc
       | Alias _ -> failwith "Can't output alias"
       | Scope (inner_env, insns) -> failwith "Can't output scope"
       | Raw_insn _ -> failwith "Can't output raw insn"
       | Macrodef _ -> failwith "Can't output macro definition"
       | Expmacro _ -> failwith "Can't output macro instantiation"
-      | Origin _ -> failwith "Can't output origin")
+      | Origin _ -> failwith "Can't output origin"
+      | DeclVars _ -> failwith "Can't output variable declaration")
     insns
     start_vpc
 

@@ -7,18 +7,17 @@ open M6502
 
 %token COMMA EOL EOF HASH COLON
 %token LBRACKET RBRACKET LSQUARE RSQUARE
-%token PLUS MINUS TIMES DIVIDE LANGLE RANGLE
+%token PLUS MINUS TIMES DIVIDE LANGLE RANGLE PERCENT DOT
 %token X Y A
 %token MACRO MEND
-%token SCOPE SCEND
-%token ORIGIN ASCII ALIAS
+%token SCOPE SCEND CONTEXT CTXEND
+%token ORIGIN ASCII ALIAS DSB TEMPS NOTEMPS UPTO
 %token <M6502.opcode> INSN
-%token <string> LABEL MACROARG EXPMACRO STRING
-%token <int> DATA
+%token <string> LABEL EXPMACRO STRING
+%token <int> DATA VAR
 %token <int32> NUM
 
-%nonassoc LANGLE
-%nonassoc RANGLE
+%nonassoc LANGLE RANGLE
 %left PLUS MINUS
 %left TIMES DIVIDE
 
@@ -41,11 +40,16 @@ insn: i = alu_op
     | i = label_directive
     | i = data_directive
     | i = ascii_directive
+    | i = dsb_directive
     | i = alias_directive
     | i = origin_directive
+    | i = var_directive
+    | i = temps_directive
+    | i = notemps_directive
     | i = expand_macro
     | i = macro
-    | i = scope				{ i }
+    | i = scope
+    | i = context			{ i }
 ;
 
 macro: MACRO l = LABEL args = list(arg) EOL m = macro_seq MEND
@@ -75,6 +79,10 @@ insns_in_scope: /* nothing */		{ [] }
 	      | i = insn EOL is = insns_in_scope
 	      				{ i :: is }
 	      | EOL is = insns_in_scope	{ is }
+;
+
+context: CONTEXT l = LABEL EOL is = insns_in_scope CTXEND
+					{ Context (Env.new_env (), l, is) }
 ;
 
 alu_op: op = INSN a = am_immediate
@@ -132,11 +140,31 @@ ascitem: n = num			{ AscChar n }
        | s = STRING			{ AscString s }
 ;
 
+dsb_directive: DSB c = num COMMA bval = num
+					{ DataBlock (c, bval) }
+;
+
 alias_directive: ALIAS l = LABEL n = num
 					{ Alias (l, n) }
 ;
 
 origin_directive: ORIGIN n = num	{ Origin n }
+;
+
+var_directive: sz = VAR vl = separated_list(COMMA, LABEL)
+					{ DeclVars (sz, vl) }
+;
+
+temps_directive: TEMPS tl = separated_list(COMMA, tempspec)
+					{ Temps tl }
+;
+
+tempspec: t = num			{ OneTemp t }
+	| st = num UPTO en = num	{ TempRange (st, en) }
+;
+
+notemps_directive: NOTEMPS ll = separated_list(COMMA, LABEL)
+					{ NoTemps ll }
 ;
 
 expand_macro: m = EXPMACRO al = separated_list(COMMA, param)
@@ -155,8 +183,12 @@ num: n = NUM				{ Expr.Int n }
    | LANGLE a = num			{ Expr.LoByte a }
    | RANGLE a = num			{ Expr.HiByte a }
    | lab = LABEL			{ Expr.ExLabel lab }
-   | mac = MACROARG			{ Expr.MacroArg mac }
+   | v = var_ref			{ v }
    | LSQUARE n = num RSQUARE		{ n }
+;
+
+%inline var_ref: PERCENT vl = separated_list(DOT, LABEL)
+					{ Expr.VarRef vl }
 ;
 
 %%

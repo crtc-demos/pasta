@@ -3,7 +3,7 @@ set -e
 OCAMLC=ocamlopt
 SUF=cmx
 rm -f parser.ml parser.mli lexer.ml lexer.mli lexer.cm? parser.cm?
-menhir --infer parser.mly
+menhir --table --infer parser.mly
 $OCAMLC -c parser.mli
 $OCAMLC -c parser.ml
 ocamllex lexer.mll

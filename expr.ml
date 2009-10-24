@@ -8,12 +8,12 @@ type const_expr =
   | LoByte of const_expr
   | HiByte of const_expr
   | ExLabel of string
-  | MacroArg of string
+  | VarRef of string list
 
 exception Label_not_found of string
 
 let rec map_expr fn = function
-    (Int _ | ExLabel _ | MacroArg _) as e -> fn e
+    (Int _ | ExLabel _ | VarRef _) as e -> fn e
   | Plus (a, b) -> fn (Plus (map_expr fn a, map_expr fn b))
   | Minus (a, b) -> fn (Minus (map_expr fn a, map_expr fn b))
   | Times (a, b) -> fn (Times (map_expr fn a, map_expr fn b))
@@ -32,8 +32,12 @@ let subst_macro_args expr formal_args actual_args =
     | f::forms, a::acts -> Hashtbl.add f2a f a; build_hash forms acts in
   build_hash formal_args actual_args;
   map_expr
-    (function MacroArg name -> Hashtbl.find f2a name | x -> x)
+    (function
+        VarRef [name] -> Hashtbl.find f2a name
+      | x -> x)
     expr
+
+exception UnknownVariable of string
 
 let eval ?env expr =
   let rec eval' = function
@@ -53,8 +57,26 @@ let eval ?env expr =
 	with Not_found ->
 	  raise (Label_not_found lab)
 	end
-    | MacroArg _ -> failwith "Can't evaluate macro arg" in
+    | VarRef vl -> raise (UnknownVariable (String.concat "." vl)) in
   eval' expr
 
 let eval_int ?env expr =
   Int32.to_int (eval ?env expr)
+
+let to_string expr =
+  let buf = Buffer.create 80 in
+  let app s = Buffer.add_string buf s
+  and appc c = Buffer.add_char buf c in
+  let rec emit = function
+    Int i -> app (Int32.to_string i)
+  | Plus (a, b) -> appc '('; emit a; appc '+'; emit b; appc ')'
+  | Minus (a, b) -> appc '('; emit a; appc '-'; emit b; appc ')'
+  | Times (a, b) -> appc '('; emit a; appc '*'; emit b; appc ')'
+  | Divide (a, b) -> appc '('; emit a; appc '/'; emit b; appc ')'
+  | Uminus a -> app "-("; emit a; appc ')'
+  | HiByte a -> app ">("; emit a; appc ')'
+  | LoByte a -> app "<("; emit a; appc ')'
+  | ExLabel lab -> app lab
+  | VarRef vl -> app (String.concat "." vl) in
+  emit expr;
+  Buffer.contents buf

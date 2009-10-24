@@ -135,12 +135,25 @@ and token = parse
   | ".3byte"		{ DATA 3 }
   | ".dword"		{ DATA 4 }
   | ".asc"		{ ASCII }
+  | ".dsb"		{ DSB }
   | ".macro"		{ MACRO }
   | ".mend"		{ MEND }
-  | ".scope"		{ SCOPE }
-  | ".scend"		{ SCEND }
+  | ".scope"	
+  | ".("		{ SCOPE }
+  | ".scend"	
+  | ".)"		{ SCEND }
   | ".org"		{ ORIGIN }
   | ".alias"		{ ALIAS }
+  | ".var" | ".var1"	{ VAR 1 }
+  | ".var2"		{ VAR 2 }
+  | ".var3"		{ VAR 3 }
+  | ".var4"		{ VAR 4 }
+  | ".temps"		{ TEMPS }
+  | ".notemps"		{ NOTEMPS }
+  | ".context"		{ CONTEXT }
+  | ".ctxend"		{ CTXEND }
+  | ".."		{ UPTO }
+  | "."			{ DOT }
   | ","			{ COMMA }
   | "#"			{ HASH }
   | ":"			{ COLON }
@@ -160,8 +173,8 @@ and token = parse
   | '\"' (('\\' _ | nonquote_char)* as s) '\"'
 			{ STRING (dequote s) }
   | label as lab	{ LABEL (lab) }
-  | "%" label as mac	{ MACROARG (String.sub mac 1 (String.length mac - 1)) }
-  | "@" label as mac	{ EXPMACRO (String.sub mac 1 (String.length mac - 1)) }
+  | '%' 		{ PERCENT }
+  | "@" (label as mac)	{ EXPMACRO mac }
   | "\n"
   | ";" [^'\n']* "\n"	{ incr line_num; EOL }
   | (" "|"\t")+		{ token lexbuf }

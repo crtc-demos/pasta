@@ -3,7 +3,10 @@ exception Error
 type token = 
   | Y
   | X
+  | VAR of (int)
+  | UPTO
   | TIMES
+  | TEMPS
   | STRING of (string)
   | SCOPE
   | SCEND
@@ -11,11 +14,12 @@ type token =
   | RBRACKET
   | RANGLE
   | PLUS
+  | PERCENT
   | ORIGIN
   | NUM of (int32)
+  | NOTEMPS
   | MINUS
   | MEND
-  | MACROARG of (string)
   | MACRO
   | LSQUARE
   | LBRACKET
@@ -26,8 +30,12 @@ type token =
   | EXPMACRO of (string)
   | EOL
   | EOF
+  | DSB
+  | DOT
   | DIVIDE
   | DATA of (int)
+  | CTXEND
+  | CONTEXT
   | COMMA
   | COLON
   | ASCII

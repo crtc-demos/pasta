@@ -1,7 +1,10 @@
 open Insn
 
-let insn_size = function
+let insn_size env = function
     Label _ -> 0
+  | DeclVars _ -> 0
+  | Temps _ -> 0
+  | NoTemps _ -> 0
   | Data (n, dl) -> n * List.length dl
   | Ascii al ->
       List.fold_right
@@ -11,6 +14,7 @@ let insn_size = function
 	  | AscString s -> sz + String.length s)
 	al
 	0
+  | DataBlock (n, _) -> Int32.to_int (Expr.eval ~env n)
   | Insn (opc, adm, _) -> M6502.insn_size opc adm
   | _ -> failwith "Can't find size of insn"
 
@@ -34,7 +38,7 @@ let layout env first_pass vpc_start insns =
           let cst = Expr.eval ~env cexp in
 	  Env.replace env label cst;
 	  insns, vpc
-      | x -> x :: insns, vpc + (insn_size x))
+      | x -> x :: insns, vpc + (insn_size env x))
     [env]
     ([], vpc_start)
     insns in

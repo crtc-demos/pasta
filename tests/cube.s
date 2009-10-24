@@ -8,49 +8,13 @@
 
 	.org $e00
 
-; args used for multiplication routines (same as general args below.)
-	
-	.alias alo $74
-	.alias ahi $75
-	.alias blo $76
-	.alias bhi $77
-
 ; 0x40-0x5f used for matrices, vector temps.
 
 ; 32 bytes.
 	.alias m_mat $50
-; 2 bytes.
-	.alias m_vec_p $4c
-; 2 bytes.
-	.alias m_result_p $4e
-
-	.alias r_tmp1 $4a
 
 ; 8 bytes.
 	.alias vec_tmp $40
-
-; general argument passing/return.
-
-; 2-byte (static) arguments.
-	.alias arg0 $74
-	.alias arg1 $76
-	.alias arg2 $78
-	.alias arg3 $7a
-	.alias arg4 $7c
-	.alias arg5 $7e
-
-; 4-byte result
-	.alias result $70
-
-; 8 temporaries (caller-save).
-	.alias tmp0 $80
-	.alias tmp1 $82
-	.alias tmp2 $84
-	.alias tmp3 $86
-	.alias tmp4 $88
-	.alias tmp5 $8a
-	.alias tmp6 $8c
-	.alias tmp7 $8e
 
 ; 0x00-0x3f can be used as X-indexed stack.
 	.alias xsp $48
@@ -248,40 +212,40 @@ mult_16_16:
 	stz result + 1
 	stz result + 2
 	
-	lda ahi
-	eor bhi
+	lda %ahi
+	eor %bhi
 	sta $04
 
 	; negate inputs if they are positive
 	.(
-	lda bhi
+	lda %bhi
 	bpl b_pos
 	lda #0
 	sec
-	sbc blo
-	sta blo
+	sbc %blo
+	sta %blo
 	lda #0
-	sbc bhi
-	sta bhi
+	sbc %bhi
+	sta %bhi
 b_pos:
 	.)
 
 	.(
-	lda ahi
+	lda %ahi
 	bpl a_pos
 	lda #0
 	sec
-	sbc alo
-	sta alo
+	sbc %alo
+	sta %alo
 	lda #0
-	sbc ahi
-	sta ahi
+	sbc %ahi
+	sta %ahi
 a_pos:
 	.)
 	
-	lda blo
+	lda %blo
 	sta $01
-	lda bhi
+	lda %bhi
 	sta $02
 	stz $03
 	
@@ -289,19 +253,19 @@ a_pos:
 	sta $00
 	.(
 lowbits:
-	lda alo
+	lda %alo
 	and $00
 	beq nextbit
-	lda result
+	lda %result
 	clc
 	adc $01
-	sta result
-	lda result + 1
+	sta %result
+	lda %result + 1
 	adc $02
-	sta result + 1
-	lda result + 2
+	sta %result + 1
+	lda %result + 2
 	adc $03
-	sta result + 2
+	sta %result + 2
 nextbit:
 	asl $01
 	rol $02
@@ -315,16 +279,16 @@ nextbit:
 	sta $00
 	.(
 highbits:
-	lda ahi
+	lda %ahi
 	and $00
 	beq nextbit
-	lda result + 1
+	lda %result + 1
 	clc
 	adc $02
-	sta result + 1
-	lda result + 2
+	sta %result + 1
+	lda %result + 2
 	adc $03
-	sta result + 2
+	sta %result + 2
 nextbit:
 	asl $02
 	rol $03
@@ -339,14 +303,14 @@ nextbit:
 	; negate result
 	lda #0
 	sec
-	sbc result
-	sta result
+	sbc %result
+	sta %result
 	lda #0
-	sbc result + 1
-	sta result + 1
+	sbc %result + 1
+	sta %result + 1
 	lda #0
-	sbc result + 2
-	sta result + 2
+	sbc %result + 2
+	sta %result + 2
 
 done:
 	rts
@@ -466,8 +430,8 @@ alo_minus_b_positive:
 	sbc sqtab_2, x
 	sta %result + 2
 	; result[2-0] has alo^2 + b^2 - abs(alo-b)^2
-	ldx ahi
-	ldy blo
+	ldx %ahi
+	ldy %blo
 	; add (ahi^2) << 8
 	lda %result + 1
 	clc

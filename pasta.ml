@@ -43,7 +43,11 @@ let collect_vars prog =
   Insn.iter_with_context
     (fun ctx i ->
       match i with
-        Insn.DeclVars (sz, names) -> ()
+        Insn.DeclVars (sz, names) ->
+	  let ctxobj = Context.ctxs#get ctx in
+	  List.iter
+	    (fun name -> ctxobj#add_var name sz)
+	    names
       | _ -> ())
     prog;
   ()
@@ -92,7 +96,10 @@ let _ =
   collect_contexts frags;
   collect_notemps frags;
   Insn.find_dependencies frags;
+  Context.ctxs#transitive_closure;
   let contexts = collect_vars frags in
+  let igraph = Alloc.build_graph () in
+  Alloc.print_graph igraph;
   (* Now, prog is in "reverse" order, i.e. the head of the list contains the
      last instruction (and the head of each nested scope contains the last
      instruction of that scope.  *)

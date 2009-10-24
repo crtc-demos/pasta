@@ -220,7 +220,8 @@ let find_dependencies prog =
 	      begin try
 	        let dctx = context_from_expr ctx dest in
 		Printf.printf "Context %s calls %s\n" (Context.to_string ctx)
-			      (Context.to_string dctx)
+			      (Context.to_string dctx);
+		(Context.ctxs#get ctx)#calls_context dctx
 	      with Not_found ->
 	        ()
 	      end

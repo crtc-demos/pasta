@@ -151,6 +151,7 @@ and token = parse
   | ".temps"		{ TEMPS }
   | ".notemps"		{ NOTEMPS }
   | ".interf"		{ INTERF }
+  | ".protect"		{ PROTECT }
   | ".context"		{ CONTEXT }
   | ".ctxend"		{ CTXEND }
   | ".."		{ UPTO }

@@ -35,14 +35,15 @@ let build_graph () =
 
 exception BadVarRef of string
 
+let split = function
+    [ctx; var] -> ctx, var
+  | x -> raise (BadVarRef (String.concat "." x))
+
 (* Augment interference list with interferences marked with explicit directives
    in source.  Won't handle nested contexts.  This won't be necessary if I
    implement proper dataflow analysis.  *)
 
 let add_explicit_interf graph intflist =
-  let split = function
-    [ctx; var] -> ctx, var
-  | x -> raise (BadVarRef (String.concat "." x)) in
   List.fold_left
     (fun graph (a, b) ->
       let (ctx1id, var1) = split a and (ctx2id, var2) = split b in
@@ -50,6 +51,27 @@ let add_explicit_interf graph intflist =
       G.add (ctx1, var1) (ctx2, var2) graph)
     graph
     intflist
+
+(* Add protection for variables of a "foreign" context throughout a particular
+   context.  This means that other function calls within the context should be
+   prevented from clobbering those variables.  *)
+
+let add_protection graph prots =
+  List.fold_left
+    (fun graph (inctxid, prot) ->
+      let inctx = ctxs#get inctxid
+      and protctxid, protvar = split prot in
+      let protctx = ctxs#get [protctxid] in
+      inctx#fold_calls
+        (fun dctxid graph ->
+	  let dctx = ctxs#get dctxid in
+	  dctx#fold_vars
+	    (fun varname _ graph ->
+	      G.add (protctx, protvar) (dctx, varname) graph)
+	    graph)
+	graph)
+    graph
+    prots
 
 let print_node (nctx, nvar) =
   Printf.sprintf "%s.%s" (nctx#get_name) nvar

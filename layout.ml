@@ -9,6 +9,7 @@ let insn_size env = function
   | Temps _ -> 0
   | NoTemps _ -> 0
   | Interf _ -> 0
+  | Protect _ -> 0
   | Data (n, dl) -> n * List.length dl
   | Ascii al ->
       List.fold_right

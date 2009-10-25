@@ -15,6 +15,7 @@ type insn =
   | Temps of temp_spec list
   | NoTemps of string list
   | Interf of string list * string list
+  | Protect of string list list
   | Macrodef of string * string list * insn list
   | Expmacro of string * const_expr list
   | DeclVars of int * string list

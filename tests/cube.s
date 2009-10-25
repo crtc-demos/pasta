@@ -1367,22 +1367,12 @@ transform_points:
 	lda #>vec_tmp
 	sta %matrix_mult.m_result_p+1
 
+	.protect %matrix_mult.m_vec_p
+	.protect %matrix_mult.m_result_p
+
 	ldx #0
 iter:
 	jsr matrix_mult
-	
-	; overlapping inputs/outputs must be distinct regs!
-	.interf %scaled_div.in_a, %matrix_mult.m_result_p
-	.interf %scaled_div.in_b, %matrix_mult.m_result_p
-	.interf %scaled_div.result, %matrix_mult.m_result_p
-	.interf %scaled_div.tmp1, %matrix_mult.m_result_p
-	.interf %scaled_div.tmp2, %matrix_mult.m_result_p
-
-	.interf %scaled_div.in_a, %matrix_mult.m_vec_p
-	.interf %scaled_div.in_b, %matrix_mult.m_vec_p
-	.interf %scaled_div.result, %matrix_mult.m_vec_p
-	.interf %scaled_div.tmp1, %matrix_mult.m_vec_p
-	.interf %scaled_div.tmp2, %matrix_mult.m_vec_p
 	
 	; dehomogenise X
 	lda (%matrix_mult.m_result_p)

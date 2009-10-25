@@ -66,6 +66,19 @@ let collect_interf prog =
     []
     prog
 
+(* This really wants fold_with_context, but I'm too lazy to write it.  *)
+
+let collect_protections prog =
+  let plist = ref [] in
+  Insn.iter_with_context
+    (fun ctx insn ->
+      match insn with
+        Insn.Protect pl ->
+	  List.iter (fun protect -> plist := (ctx, protect) :: !plist) pl
+      | _ -> ())
+    prog;
+  !plist
+
 let collect_temps prog pool =
   List.iter
     (function
@@ -122,6 +135,8 @@ let _ =
   collect_vars frags;
   let igraph = Alloc.build_graph () in
   let igraph = Alloc.add_explicit_interf igraph (collect_interf frags) in
+  let prots = collect_protections frags in
+  let igraph = Alloc.add_protection igraph prots in
   Alloc.print_graph igraph;
   let pool = new Temps.temps in
   collect_temps frags pool;

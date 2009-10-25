@@ -13,6 +13,7 @@ type token =
   | RSQUARE
   | RBRACKET
   | RANGLE
+  | PROTECT
   | PLUS
   | PERCENT
   | ORIGIN

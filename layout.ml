@@ -1,10 +1,14 @@
 open Insn
 
+(* It'd probably be better to filter out the zero-sized directives before we
+   get to here.  This works OK for now though.  *)
+
 let insn_size env = function
     Label _ -> 0
   | DeclVars _ -> 0
   | Temps _ -> 0
   | NoTemps _ -> 0
+  | Interf _ -> 0
   | Data (n, dl) -> n * List.length dl
   | Ascii al ->
       List.fold_right

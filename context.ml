@@ -66,7 +66,7 @@ class contexts = object (self)
     let rec iterate_closure () =
       let did_something = ref false in
       Hashtbl.iter
-	(fun _ (ctx:context) ->
+	(fun ctxid (ctx:context) ->
           ctx#fold_calls
 	    (fun dctxid () -> 
 	      let dctx = self#get dctxid in
@@ -75,10 +75,16 @@ class contexts = object (self)
 		  if not (ctx#call_marked ddctxid) then begin
 		    ctx#calls_context ddctxid;
 		    Printf.printf "Context %s reaches %s\n"
-		      (ctx#get_name) (to_string ddctxid);
+		      (to_string ctxid) (to_string ddctxid);
 		    did_something := true
 		  end)
-		())
+		();
+	      if false && not (dctx#call_marked ctxid) then begin
+	        dctx#calls_context ctxid;
+		Printf.printf "Context %s reaches %s (by returning)\n"
+		  (to_string dctxid) (to_string ctxid);
+		did_something := true
+	      end)
 	    ())
 	contexts;
       if !did_something then

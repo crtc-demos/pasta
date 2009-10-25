@@ -4,6 +4,9 @@
 	.alias osgbpb $ffd1
 	.alias osfile $ffdd
 
+	; The "notemps" directive says that these functions are safe to call
+	; from within a context. I.e., they use none of the automatically
+	; allocated temporaries.
 	.notemps oswrch, osbyte, osfind, osgbpb, osfile
 
 	.org $e00
@@ -31,7 +34,9 @@
 	.alias sintab_0 $9b00
 	.alias sintab_1 $9b40
 
-	.temps $74..$8f
+	; Declare ZP locations to use for automatically-allocated temporaries.
+	.temps $70..$8f
+	.temps $4a..$4f
 
 entry:
 	.(
@@ -368,32 +373,6 @@ a_positive:
 	lda %bhi
 	cmp #1
 	.(
-	sbc %bhi
-	sta %bhi
-b_positive:
-	.)
-	
-	bit %ahi
-	.(
-	bpl a_positive
-	iny
-
-	lda #0
-	sec
-	sbc %alo
-	sta %alo
-	lda #0
-	sbc %ahi
-	sta %ahi
-a_positive:
-	.)
-
-	sty %tmp1
-
-	; Allow b=256 or b=-256 as special cases. (Condition a bit slack).
-	lda %bhi
-	cmp #1
-	.(
 	bne not_mult_256
 	jmp mult_256
 not_mult_256:
@@ -528,7 +507,8 @@ m256_positive:
 	; A corrupted. X,Y preserved. "scale" is fixed at 32.
 	
 	.context scaled_div
-	.var2 in_a, in_b, tmp1, tmp2
+	.var2 in_a, in_b, tmp1
+	.var tmp2
 	.var2 result
 	
 scaled_div:
@@ -1252,6 +1232,8 @@ finished:
 	rts
 	.ctxend
 
+	; copy matrix at (M_VEC_P) to M_MAT (the global transformation matrix).
+
 	.context copy_matrix
 	.var2 m_vec_p
 
@@ -1315,9 +1297,9 @@ still_doing_column:
 tmp_matrix:
 	.dsb 32, 0
 
+	; do TMP_MATRIX = M_MAT x ROT_MATRIX.
+
 	.context postmultiply_matrix
-	.var2 m_vec_p
-	
 
 postmultiply_matrix:
 	lda #<rot_matrix
@@ -1388,6 +1370,19 @@ transform_points:
 	ldx #0
 iter:
 	jsr matrix_mult
+	
+	; overlapping inputs/outputs must be distinct regs!
+	.interf %scaled_div.in_a, %matrix_mult.m_result_p
+	.interf %scaled_div.in_b, %matrix_mult.m_result_p
+	.interf %scaled_div.result, %matrix_mult.m_result_p
+	.interf %scaled_div.tmp1, %matrix_mult.m_result_p
+	.interf %scaled_div.tmp2, %matrix_mult.m_result_p
+
+	.interf %scaled_div.in_a, %matrix_mult.m_vec_p
+	.interf %scaled_div.in_b, %matrix_mult.m_vec_p
+	.interf %scaled_div.result, %matrix_mult.m_vec_p
+	.interf %scaled_div.tmp1, %matrix_mult.m_vec_p
+	.interf %scaled_div.tmp2, %matrix_mult.m_vec_p
 	
 	; dehomogenise X
 	lda (%matrix_mult.m_result_p)
@@ -1487,15 +1482,20 @@ test_render:
 
 	lda #<transformation
 	sta %copy_matrix.m_vec_p
-	sta %postmultiply_matrix.m_vec_p
 	lda #>transformation
 	sta %copy_matrix.m_vec_p + 1
-	sta %postmultiply_matrix.m_vec_p + 1
 	jsr copy_matrix
 
 	lda rotation_amount
 	jsr make_yrot_matrix
 	jsr postmultiply_matrix
+	
+	; copy temp matrix back to m_mat.
+	lda #<tmp_matrix
+	sta %copy_matrix.m_vec_p
+	lda #>tmp_matrix
+	sta %copy_matrix.m_vec_p + 1
+	jsr copy_matrix
 	
 	lda rotation_amount
 	asl

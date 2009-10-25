@@ -25,6 +25,7 @@ type token =
   | LBRACKET
   | LANGLE
   | LABEL of (string)
+  | INTERF
   | INSN of (M6502.opcode)
   | HASH
   | EXPMACRO of (string)

@@ -11,7 +11,7 @@ open M6502
 %token X Y A
 %token MACRO MEND
 %token SCOPE SCEND CONTEXT CTXEND
-%token ORIGIN ASCII ALIAS DSB TEMPS NOTEMPS UPTO
+%token ORIGIN ASCII ALIAS DSB TEMPS NOTEMPS INTERF UPTO
 %token <M6502.opcode> INSN
 %token <string> LABEL EXPMACRO STRING
 %token <int> DATA VAR
@@ -46,6 +46,7 @@ insn: i = alu_op
     | i = var_directive
     | i = temps_directive
     | i = notemps_directive
+    | i = interf_directive
     | i = expand_macro
     | i = macro
     | i = scope
@@ -167,6 +168,10 @@ notemps_directive: NOTEMPS ll = separated_list(COMMA, LABEL)
 					{ NoTemps ll }
 ;
 
+interf_directive: INTERF a = var_ref COMMA b = var_ref
+					{ Interf (a, b) }
+;
+
 expand_macro: m = EXPMACRO al = separated_list(COMMA, param)
 					{ Expmacro (m, al) }
 ;
@@ -183,12 +188,12 @@ num: n = NUM				{ Expr.Int n }
    | LANGLE a = num			{ Expr.LoByte a }
    | RANGLE a = num			{ Expr.HiByte a }
    | lab = LABEL			{ Expr.ExLabel lab }
-   | v = var_ref			{ v }
+   | v = var_ref			{ Expr.VarRef v }
    | LSQUARE n = num RSQUARE		{ n }
 ;
 
 %inline var_ref: PERCENT vl = separated_list(DOT, LABEL)
-					{ Expr.VarRef vl }
+					{ vl }
 ;
 
 %%

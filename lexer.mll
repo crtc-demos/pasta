@@ -150,6 +150,7 @@ and token = parse
   | ".var4"		{ VAR 4 }
   | ".temps"		{ TEMPS }
   | ".notemps"		{ NOTEMPS }
+  | ".interf"		{ INTERF }
   | ".context"		{ CONTEXT }
   | ".ctxend"		{ CTXEND }
   | ".."		{ UPTO }

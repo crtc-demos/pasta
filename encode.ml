@@ -66,7 +66,8 @@ let rec emit_insns fh start_vpc env insns =
 	  done;
 	  vpc + num
       | Label _
-      | DeclVars _ -> vpc
+      | DeclVars _
+      | Interf _ -> vpc
       | Alias _ -> failwith "Can't output alias"
       | Scope (inner_env, insns) -> failwith "Can't output scope"
       | Raw_insn _ -> failwith "Can't output raw insn"

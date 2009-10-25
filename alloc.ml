@@ -33,6 +33,24 @@ let build_graph () =
       acc)
     G.empty
 
+exception BadVarRef of string
+
+(* Augment interference list with interferences marked with explicit directives
+   in source.  Won't handle nested contexts.  This won't be necessary if I
+   implement proper dataflow analysis.  *)
+
+let add_explicit_interf graph intflist =
+  let split = function
+    [ctx; var] -> ctx, var
+  | x -> raise (BadVarRef (String.concat "." x)) in
+  List.fold_left
+    (fun graph (a, b) ->
+      let (ctx1id, var1) = split a and (ctx2id, var2) = split b in
+      let ctx1 = ctxs#get [ctx1id] and ctx2 = ctxs#get [ctx2id] in
+      G.add (ctx1, var1) (ctx2, var2) graph)
+    graph
+    intflist
+
 let print_node (nctx, nvar) =
   Printf.sprintf "%s.%s" (nctx#get_name) nvar
 

@@ -5,7 +5,8 @@ let collect_insns prog =
         Insn.Macrodef _
       | Insn.DeclVars _
       | Insn.Temps _
-      | Insn.NoTemps _ -> acc
+      | Insn.NoTemps _
+      | Insn.Interf _ -> acc
       | x -> x :: acc)
     prog
     []
@@ -52,6 +53,18 @@ let collect_vars prog =
       | _ -> ())
     prog;
   ()
+
+(* Collect explicit interference directives.  *)
+
+let collect_interf prog =
+  Insn.fold_left_with_env
+    (fun _ intflist insn ->
+      match insn with
+        Insn.Interf (a, b) -> (a, b) :: intflist
+      | _ -> intflist)
+    []
+    []
+    prog
 
 let collect_temps prog pool =
   List.iter
@@ -108,6 +121,7 @@ let _ =
   Context.ctxs#transitive_closure;
   collect_vars frags;
   let igraph = Alloc.build_graph () in
+  let igraph = Alloc.add_explicit_interf igraph (collect_interf frags) in
   Alloc.print_graph igraph;
   let pool = new Temps.temps in
   collect_temps frags pool;

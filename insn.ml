@@ -14,6 +14,7 @@ type insn =
   | Context of (string, int32) Hashtbl.t * string * insn list
   | Temps of temp_spec list
   | NoTemps of string list
+  | Interf of string list * string list
   | Macrodef of string * string list * insn list
   | Expmacro of string * const_expr list
   | DeclVars of int * string list
@@ -226,24 +227,27 @@ let context_from_expr caller expr =
 
 let find_dependencies prog =
   iter_with_context
-    (fun ctx i ->
-      match ctx, i with
+    (fun ctxid i ->
+      match ctxid, i with
         [], _ -> ()
       | _, Raw_insn (opcode, rawaddrmode) ->
 	  begin match opcode, rawaddrmode with
 	    Jsr, Raw_num dest
 	  | Jmp, Raw_num dest ->
 	      begin try
-	        let dctx = context_from_expr ctx dest in
-		Printf.printf "Context %s calls %s\n" (Context.to_string ctx)
-			      (Context.to_string dctx);
-		(Context.ctxs#get ctx)#calls_context dctx
+	        let ctx = Context.ctxs#get ctxid in
+	        let dctxid = context_from_expr ctxid dest in
+		if not (ctx#call_marked dctxid) then begin
+		  Printf.printf "Context %s calls %s\n"
+		    (Context.to_string ctxid) (Context.to_string dctxid);
+		  ctx#calls_context dctxid
+		end
 	      with Not_found ->
 	        ()
 	      end
 	  | Jmp, x ->
 	      Printf.printf "Context %s has unsupported jump\n"
-	        (Context.to_string ctx);
+	        (Context.to_string ctxid);
 	      raise UnhandledJump
 	  | _ -> ()
 	  end

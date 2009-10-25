@@ -42,6 +42,15 @@ let layout env first_pass vpc_start insns =
     [env]
     ([], vpc_start)
     insns in
+  (* Stick context entry points into top-level environment (hack!)  *)
+  Insn.iter_with_context
+    (fun ctx insn ->
+      match insn with
+        Context (ht, ctxname, _) ->
+	  let entry_pt = Env.find [ht] ctxname in
+	  Env.replace [env] ctxname entry_pt
+      | _ -> ())
+    insns;
   insns', last_vpc
 
 let iterate_layout vpc_start insns =

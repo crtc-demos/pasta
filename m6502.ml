@@ -292,7 +292,7 @@ let insn_opcode op addrmode =
   let i = Hashtbl.find insns_hash (op, addrmode) in
   i.opcode
 
-let raw_addrmode_expr_fn fn = function
+let map_raw_addrmode_expr fn = function
     Raw_immediate e -> Raw_immediate (fn e)
   | Raw_num e -> Raw_num (fn e)
   | Raw_num_x e -> Raw_num_x (fn e)

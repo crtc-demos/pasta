@@ -2,13 +2,21 @@
 
 module IntfGraph = Alloc.G
 
-type place = Spill | Allocate
+let neighbours_use nodes =
+  List.fold_left
+    (fun acc node ->
+      let nctx, nvarname = node in
+      try
+	let nvar = nctx#get_var nvarname in
+	(nvar#get_loc, nvar#get_size) :: acc
+      with Not_found -> acc)
+    []
+    nodes
 
 let alloc intf regpool =
   let min_degree graph =
     IntfGraph.fold_node
       (fun node edges lo ->
-       (* Printf.printf "Alloc: node %s\n" (Id.string_of_rop node); *)
         match lo with
           None -> Some (node, IntfGraph.degree_i edges)
         | Some (_, lo_deg) ->
@@ -16,27 +24,32 @@ let alloc intf regpool =
             if new_deg < lo_deg then Some (node, new_deg) else lo)
       graph
       None
-  in let rec remove_nodes intf' spilled =
-    match min_degree intf' with
-      None -> colouring, spilled
+  in let rec remove_nodes intf spilled =
+    match min_degree intf with
+      None -> spilled
     | Some (node, md) ->
-      (*  Printf.printf "Colour: node %s, degree %d\n"
-          (Id.string_of_rop node) md; *)
-        let without_node = IntfGraph.remove_node node intf' in
-        let cols, spilled' =
-          remove_nodes without_node colouring spilled
-        in
-          (* The node's neighbours when it is put back in.  *)
-          let neighbours = IntfGraph.connected node intf'
-          and all_neighbours = IntfGraph.connected node intf in
-          try
-	    let (nctx, nvar) = node in
-	    let var = nctx#get_var nvar in
-            let chosen = regpool#choose_reg var#get_size in
-	    var#set_loc chosen;
-	    spilled'
-          with
-            Temps.Spill -> node :: spilled'
+        let without_node = IntfGraph.remove_node node intf in
+        let spilled' = remove_nodes without_node spilled in
+        (* The node's neighbours when it is put back in.  *)
+        let neighbours = IntfGraph.connected node intf in
+	let exclude_regs = neighbours_use neighbours in
+        try
+	  let (nctx, nvar) = node in
+	  let var = nctx#get_var nvar in
+          let chosen = regpool#choose_reg exclude_regs var#get_size in
+	  var#set_loc chosen;
+	  spilled'
+        with
+          Temps.Spill -> node :: spilled'
   in
     remove_nodes intf []
 
+let dump_allocation () =
+  Context.ctxs#iter
+    (fun ctxname ctx ->
+      ctx#fold_vars
+        (fun name var () ->
+          Printf.printf "Var %s.%s (size %d) assigned to %x\n"
+	    (Context.to_string ctxname) name var#get_size var#get_loc)
+	())
+    

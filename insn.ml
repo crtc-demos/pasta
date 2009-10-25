@@ -66,13 +66,29 @@ let iter_with_context fn insns =
     | Scope (_, insns_in_scope)::is ->
         iter ctx insns_in_scope;
 	iter ctx is
-    | Context (_, ctxname, insns_in_ctx)::is ->
+    | (Context (_, ctxname, insns_in_ctx) as i)::is ->
         iter (ctxname::ctx) insns_in_ctx;
+	fn ctx i;
 	iter ctx is
     | i::is ->
         fn ctx i;
 	iter ctx is in
   iter [] insns
+
+(* This map retains the program structure.  *)
+
+let map_with_context fn insns =
+  let rec map ctx insns =
+    match insns with
+      [] -> []
+    | Context (ht, ctxname, insns_in_ctx)::is ->
+        let new_insns = map (ctxname::ctx) insns_in_ctx in
+	(fn ctx (Context (ht, ctxname, new_insns)))::(map ctx is)
+    | Scope (ht, insns_in_scope)::is ->
+        let new_insns = map ctx insns_in_scope in
+	(fn ctx (Scope (ht, new_insns)))::(map ctx is)
+    | i::is -> (fn ctx i)::(map ctx is) in
+  map [] insns
 
 let has_addrmode op am =
   Hashtbl.mem insns_hash (op, am)
@@ -165,7 +181,7 @@ let rec invoke_macros_once prog macros =
 	    (fun body_insn insns ->
 	      match body_insn with
 		Raw_insn (opc, raw_addrmode) ->
-	          let raw_addrmode' = M6502.raw_addrmode_expr_fn
+	          let raw_addrmode' = M6502.map_raw_addrmode_expr
 		    (fun expr -> subst_macro_args expr formal_args actual_args)
 		    raw_addrmode in
 		  Raw_insn (opc, raw_addrmode') :: insns
@@ -232,4 +248,26 @@ let find_dependencies prog =
 	  | _ -> ()
 	  end
       | _ -> ())
+    prog
+
+let lookup_var ctxname varname =
+  let var =
+    match varname with
+      [single] -> (Context.ctxs#get ctxname)#get_var single
+    | [qual; name] -> (Context.ctxs#get [qual])#get_var name
+    | _ -> failwith "Nested contexts aren't supported yet" in
+  Expr.Int (Int32.of_int var#get_loc)
+
+let substitute_vars prog =
+  map_with_context
+    (fun ctx i ->
+      match i with
+        Raw_insn (opc, rawadm) ->
+	  let newrawadm = map_raw_addrmode_expr
+	    (Expr.map_expr (function
+	        VarRef v -> lookup_var ctx v
+	      | x -> x))
+	    rawadm in
+	  Raw_insn (opc, newrawadm)
+      | x -> x)
     prog

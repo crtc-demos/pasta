@@ -106,24 +106,26 @@ select_old_lang:
 
 	; copy A * 256 bytes from $3000 to YX.
 	; corrupts tmp1, tmp2
+
 	.context copy_to_sram
 	.var2 tmp1, tmp2
+
 copy_to_sram:
-	stx tmp1
-	sty tmp1 + 1
+	stx %tmp1
+	sty %tmp1 + 1
 	tax
 	lda #<$3000
-	sta tmp2
+	sta %tmp2
 	lda #>$3000
-	sta tmp2 + 1
+	sta %tmp2 + 1
 	ldy #0
 loop:
-	lda (tmp2),y
-	sta (tmp1),y
+	lda (%tmp2),y
+	sta (%tmp1),y
 	iny
 	bne loop
-	inc tmp2 + 1
-	inc tmp1 + 1
+	inc %tmp2 + 1
+	inc %tmp1 + 1
 	dex
 	bne loop
 	rts
@@ -201,20 +203,22 @@ sintab_name:
 
 	; multiply ahi,alo by bhi,blo, result in result (3 bytes).
 	; 'dumb' implementation.
-	; corrupts $00,$01,$02,$03,$04,alo,ahi,blo,bhi,A,X,Y.
+	; corrupts A,X,Y.
 
 	.context mult_16_16
 	.var alo, ahi, blo, bhi
+	.var result_neg
 	.var3 result
+	.var4 tmp
 
 mult_16_16:
-	stz result
-	stz result + 1
-	stz result + 2
+	stz %result
+	stz %result + 1
+	stz %result + 2
 	
 	lda %ahi
 	eor %bhi
-	sta $04
+	sta %result_neg
 
 	; negate inputs if they are positive
 	.(
@@ -244,60 +248,60 @@ a_pos:
 	.)
 	
 	lda %blo
-	sta $01
+	sta %tmp + 1
 	lda %bhi
-	sta $02
-	stz $03
+	sta %tmp + 2
+	stz %tmp + 3
 	
 	lda #1
-	sta $00
+	sta %tmp
 	.(
 lowbits:
 	lda %alo
-	and $00
+	and %tmp
 	beq nextbit
 	lda %result
 	clc
-	adc $01
+	adc %tmp + 1
 	sta %result
 	lda %result + 1
-	adc $02
+	adc %tmp + 2
 	sta %result + 1
 	lda %result + 2
-	adc $03
+	adc %tmp + 3
 	sta %result + 2
 nextbit:
-	asl $01
-	rol $02
-	rol $03
+	asl %tmp + 1
+	rol %tmp + 2
+	rol %tmp + 3
 
-	asl $00
+	asl %tmp
 	bne lowbits
 	.)
 
 	lda #1
-	sta $00
+	sta %tmp
 	.(
 highbits:
 	lda %ahi
-	and $00
+	and %tmp
 	beq nextbit
 	lda %result + 1
 	clc
-	adc $02
+	adc %tmp + 2
 	sta %result + 1
 	lda %result + 2
-	adc $03
+	adc %tmp + 3
 	sta %result + 2
 nextbit:
-	asl $02
-	rol $03
+	asl %tmp + 2
+	rol %tmp + 3
 	
-	asl $00
+	asl %tmp
 	bne highbits
 	.)
 
-	lda $04
+	lda %result_neg
 	bpl done
 
 	; negate result
@@ -524,62 +528,62 @@ m256_positive:
 	; A corrupted. X,Y preserved. "scale" is fixed at 32.
 	
 	.context scaled_div
-	.var alo, ahi, blo, bhi, tmp1, tmp2
+	.var2 in_a, in_b, tmp1, tmp2
 	.var2 result
 	
 scaled_div:
 	phy
 	phx
 	stz %tmp2
-	bit %ahi
+	bit %in_a + 1
 	.(
 	bpl apos
 	lda #0
 	sec
-	sbc %alo
-	sta %alo
+	sbc %in_a
+	sta %in_a
 	lda #0
-	sbc %ahi
-	sta %ahi
+	sbc %in_a + 1
+	sta %in_a + 1
 	inc %tmp2
 apos:
 	.)
-	bit %bhi
+	bit %in_b + 1
 	.(
 	bpl bpos
 	lda #0
 	sec
-	sbc %blo
-	sta %blo
+	sbc %in_b
+	sta %in_b
 	lda #0
-	sbc %bhi
-	sta %bhi
+	sbc %in_b + 1
+	sta %in_b + 1
 	inc %tmp2
 bpos:
 	.)
-	lda %ahi
-	asl %alo
+	lda %in_a + 1
+	asl %in_a
 	rol
 	clc
 	adc #>logtab_addr
-	sta %ahi
-	lda (%alo)
+	sta %in_a + 1
+	lda (%in_a)
 	sta %tmp1
 	ldy #1
-	lda (%alo), y
+	lda (%in_a), y
 	sta %tmp1 + 1
-	lda %bhi
-	asl %blo
+	lda %in_b + 1
+	asl %in_b
 	rol
 	clc
 	adc #>logtab_addr
-	sta %bhi
+	sta %in_b + 1
 	lda %tmp1
 	sec
-	sbc (%blo)
+	sbc (%in_b)
 	sta %tmp1
 	lda %tmp1 + 1
-	sbc (%blo), y
+	sbc (%in_b), y
 	; bias (+2048 bytes/1024 array elements)
 	clc
 	adc #8
@@ -1387,16 +1391,16 @@ iter:
 	
 	; dehomogenise X
 	lda (%matrix_mult.m_result_p)
-	sta %scaled_div.alo
+	sta %scaled_div.in_a
 	ldy #1
 	lda (%matrix_mult.m_result_p),y
-	sta %scaled_div.ahi
+	sta %scaled_div.in_a + 1
 	ldy #6
 	lda (%matrix_mult.m_result_p),y
-	sta %scaled_div.blo
+	sta %scaled_div.in_b
 	iny
 	lda (%matrix_mult.m_result_p),y
-	sta %scaled_div.bhi
+	sta %scaled_div.in_b + 1
 	jsr scaled_div
 	lda %scaled_div.result
 	sta xpoints,x
@@ -1408,16 +1412,16 @@ iter:
 	; dehomogenise Y
 	ldy #2
 	lda (%matrix_mult.m_result_p),y
-	sta %scaled_div.alo
+	sta %scaled_div.in_a
 	iny
 	lda (%matrix_mult.m_result_p),y
-	sta %scaled_div.ahi
+	sta %scaled_div.in_a + 1
 	ldy #6
 	lda (%matrix_mult.m_result_p),y
-	sta %scaled_div.blo
+	sta %scaled_div.in_b
 	iny
 	lda (%matrix_mult.m_result_p),y
-	sta %scaled_div.bhi
+	sta %scaled_div.in_b + 1
 	jsr scaled_div
 	lda %scaled_div.result
 	sta xpoints,x
@@ -1483,7 +1487,7 @@ test_render:
 
 	lda #<transformation
 	sta %copy_matrix.m_vec_p
-	sta %postmultiply_matrix.v_vec_p
+	sta %postmultiply_matrix.m_vec_p
 	lda #>transformation
 	sta %copy_matrix.m_vec_p + 1
 	sta %postmultiply_matrix.m_vec_p + 1

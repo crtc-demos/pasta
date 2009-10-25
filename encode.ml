@@ -65,14 +65,18 @@ let rec emit_insns fh start_vpc env insns =
 	    output_data fh 1 bval
 	  done;
 	  vpc + num
-      | Label _ -> vpc
+      | Label _
+      | DeclVars _ -> vpc
       | Alias _ -> failwith "Can't output alias"
       | Scope (inner_env, insns) -> failwith "Can't output scope"
       | Raw_insn _ -> failwith "Can't output raw insn"
       | Macrodef _ -> failwith "Can't output macro definition"
       | Expmacro _ -> failwith "Can't output macro instantiation"
       | Origin _ -> failwith "Can't output origin"
-      | DeclVars _ -> failwith "Can't output variable declaration")
+      | DeclVars _ -> failwith "Can't output variable declaration"
+      | NoTemps _ -> failwith "Can't output notemps directive"
+      | Temps _ -> failwith "Can't output temps directive"
+      | Context _ -> failwith "Can't output context")
     insns
     start_vpc
 

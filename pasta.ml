@@ -4,7 +4,8 @@ let collect_insns prog =
       match frag with
         Insn.Macrodef _
       | Insn.DeclVars _
-      | Insn.Temps _ -> acc
+      | Insn.Temps _
+      | Insn.NoTemps _ -> acc
       | x -> x :: acc)
     prog
     []
@@ -52,6 +53,14 @@ let collect_vars prog =
     prog;
   ()
 
+let collect_temps prog pool =
+  List.iter
+    (function
+        Insn.Temps tempspecs ->
+          List.iter (fun tspec -> pool#add_to_pool tspec) tempspecs
+      | _ -> ())
+    prog
+
 (* Find the origin.  Return (origin, prog') where prog' is the input program
    with .org directives removed.
    If this is called with "prog" in reverse order, the first .org will be the
@@ -97,9 +106,22 @@ let _ =
   collect_notemps frags;
   Insn.find_dependencies frags;
   Context.ctxs#transitive_closure;
-  let contexts = collect_vars frags in
+  collect_vars frags;
   let igraph = Alloc.build_graph () in
   Alloc.print_graph igraph;
+  let pool = new Temps.temps in
+  collect_temps frags pool;
+  let spilled = Colour.alloc igraph pool in
+  if spilled <> [] then begin
+    Printf.printf "Ran out of temps!\n";
+    List.iter
+      (fun (nctx, nvarname) ->
+	Printf.printf "No space for: %s.%s\n" nctx#get_name nvarname)
+      spilled;
+    exit 1
+  end;
+  Colour.dump_allocation ();
+  let prog = Insn.substitute_vars prog in
   (* Now, prog is in "reverse" order, i.e. the head of the list contains the
      last instruction (and the head of each nested scope contains the last
      instruction of that scope.  *)

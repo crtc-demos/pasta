@@ -49,7 +49,11 @@ let dump_allocation () =
     (fun ctxname ctx ->
       ctx#fold_vars
         (fun name var () ->
-          Printf.printf "Var %s.%s (size %d) assigned to %x\n"
-	    (Context.to_string ctxname) name var#get_size var#get_loc)
+          try
+	    Printf.printf "Var %s.%s (size %d) assigned to %x\n"
+	      (Context.to_string ctxname) name var#get_size var#get_loc
+	  with Not_found ->
+	    Printf.printf "Variable %s.%s\n" (Context.to_string ctxname)
+	      name)
 	())
     

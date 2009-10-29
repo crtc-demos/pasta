@@ -40,7 +40,7 @@
 
 entry:
 	.(
-	lda #4
+	lda #2
 	jsr setmode
 	jsr setorigin
 	jsr select_sram
@@ -50,6 +50,11 @@ entry:
 	jsr load_sintab
 	jsr cls
 	jsr test_render
+	.(
+rept:
+	jsr test_line
+	bra rept
+	.)
 	jsr select_old_lang
 	rts
 	.)
@@ -951,18 +956,41 @@ points:
 
 xpoints:
 	.dsb 48, 0
+xpoints_old:
+	.dsb 48, 0
+xpoints_tmp:
+	.dsb 48, 0
 
 	; for faces, define normal vector.
-faces:
-	.word  0,  0, -1, 1
-	.word  1,  0,  0, 1
-	.word  0,  0,  1, 1
-	.word -1,  0,  0, 1
-	.word  0, -1,  0, 1
-	.word  0,  1,  0, 1
+;faces:
+;	.word  0,  0, -1, 1
+;	.word  1,  0,  0, 1
+;	.word  0,  0,  1, 1
+;	.word -1,  0,  0, 1
+;	.word  0, -1,  0, 1
+;	.word  0,  1,  0, 1
 
-xfaces:
-	.dsb 36, 0
+;xfaces:
+;	.dsb 36, 0
+
+;     6__________7          __________    
+;     /:        /|         /:	5    /|
+;   2/________3/ |        /________ / |
+;   |  :      |  |       |  :	 2 |  |
+;   |  :      |  |       |3 :	   | 1|
+;   | 4:______|__|5      |  :_0____|__| 
+;   | /       | /        | /   4   | / 
+;   |/________|/         |/________|/
+;   0         1           	    
+
+; pt0, pt1, pt2, visible.
+corners:
+	.byte 6*2, 6*0, 6*1, 0
+	.byte 6*3, 6*1, 6*5, 0
+	.byte 6*7, 6*5, 6*4, 0
+	.byte 6*6, 6*4, 6*0, 0
+	.byte 6*0, 6*4, 6*5, 0
+	.byte 6*6, 6*2, 6*3, 0
 
 	; for lines, define start point, end point, left face, right face.
 lines:
@@ -1009,8 +1037,8 @@ lines:
 
 ; (This is written transposed.)
 transformation:
-        .word 6144, 0, 0, 0
-        .word 0, 6144, 0, 0
+        .word 768, 0, 0, 0
+        .word 0, 1536, 0, 0
         .word 0, 0, -475, -256
         .word 0, 0, -5851, 20480
 
@@ -1367,6 +1395,9 @@ transform_points:
 	lda #>vec_tmp
 	sta %matrix_mult.m_result_p+1
 
+	; these stay live throughout the function. Make sure that they don't
+	; get clobbered by calls to other contexts.
+
 	.protect %matrix_mult.m_vec_p
 	.protect %matrix_mult.m_result_p
 
@@ -1466,10 +1497,13 @@ rotation_amount:
 	.byte 0
 
 	.context test_render
-	.var r_tmp1
+	.var first
 
 test_render:
+	lda #0
+	sta %first
 
+test_render_loop:
 	lda #<transformation
 	sta %copy_matrix.m_vec_p
 	lda #>transformation
@@ -1498,9 +1532,65 @@ test_render:
 	sta %copy_matrix.m_vec_p + 1
 	jsr copy_matrix
 	
+	.(
+	ldx #0
+loop:
+	lda xpoints,x
+	sta xpoints_old,x
+	inx
+	cpx #48
+	bne loop
+	.)
+	
 	jsr transform_points
-	;jsr sin_wave
-	jsr cls
+	; draw new object
+	jsr draw_object
+
+	;jsr visibility
+	jsr visibility2
+
+	lda %first
+	beq is_first
+
+	.(
+	ldx #0
+loop:
+	lda xpoints, x
+	sta xpoints_tmp, x
+	lda xpoints_old, x
+	sta xpoints, x
+	inx
+	cpx #48
+	bne loop
+	.)
+
+	; undraw old object
+	jsr draw_object
+
+	.(
+	ldx #0
+loop:
+	lda xpoints_tmp, x
+	sta xpoints, x
+	inx
+	cpx #48
+	bne loop
+	.)
+
+is_first:
+	lda #1
+	sta %first
+
+	inc rotation_amount
+	jmp test_render_loop
+	
+	rts
+	.ctxend
+
+	.context draw_object
+	.var r_tmp1
+
+draw_object:
 	ldx #0
 loop:
 	lda lines,x
@@ -1512,9 +1602,14 @@ loop:
 	adc %r_tmp1
 	tay
 	
-	; move to line start
-	lda #4
-	jsr plot_xpoint_y
+	lda xpoints,y
+	clc
+	adc #80
+	sta %v_line.x_start
+	lda xpoints+2,y
+	clc
+	adc #128
+	sta %v_line.y_start
 	
 	lda lines+1,x
 	asl
@@ -1524,9 +1619,18 @@ loop:
 	adc %r_tmp1
 	tay
 	
-	; draw to line end
-	lda #5
-	jsr plot_xpoint_y
+	lda xpoints,y
+	clc
+	adc #80
+	sta %v_line.x_end
+	lda xpoints+2,y
+	clc
+	adc #128
+	sta %v_line.y_end
+	
+	phx
+	jsr v_line
+	plx
 	
 	txa
 	clc
@@ -1535,10 +1639,443 @@ loop:
 	
 	cmp #48
 	bne loop
+	rts
+	.ctxend
+
+	.context v_line
+
+	.var y_start, y_end
+	.var x_start, x_end
+	.var2 xpos, xdelta
+	.var2 tmp1, tmp2
 	
-	inc rotation_amount
-	jmp test_render
+v_line:
+	.(
+	lda %y_end
+	cmp %y_start
+	bcs right_way_up
+	
+	; flip Y
+	lda %y_start
+	ldx %y_end
+	sta %y_end
+	stx %y_start
+	
+	; flip X
+	lda %x_start
+	ldx %x_end
+	sta %x_end
+	stx %x_start
+	
+right_way_up:
+	.)
+
+	lda %x_end
+	sec
+	sbc %x_start
+	pha
+	lda #0
+	sbc #0
+	sta %scaled_div.in_a + 1
+	pla
+	asl
+	rol %scaled_div.in_a + 1
+	asl
+	rol %scaled_div.in_a + 1
+	asl
+	rol %scaled_div.in_a + 1
+	sta %scaled_div.in_a
+	; now scaled_div.in_a is (x_end - x_start) * 8.
+	
+	lda %y_end
+	sec
+	sbc %y_start
+	sta %scaled_div.in_b
+	stz %scaled_div.in_b + 1
+	
+	jsr scaled_div
+	
+	lda %scaled_div.result
+	sta %xdelta
+	lda %scaled_div.result + 1
+	sta %xdelta + 1
+	
+	lda %x_start
+	sta %xpos + 1
+	stz %xpos
+	
+	; now xpos, xdelta should be set correctly.
+	
+	lda %y_start
+	and #255-7
+	stz %tmp1
+
+	; multiply by 64 to [A:%tmp1]
+	lsr
+	ror %tmp1
+	lsr
+	ror %tmp1
+	
+	; store to tmp2 (ypos & ~7) * 64
+	sta %tmp2 + 1
+	ldx %tmp1
+	stx %tmp2
+	
+	; tmp1 is (ypos & ~7) * 16
+	lsr
+	ror %tmp1
+	lsr
+	ror %tmp1
+	sta %tmp1 + 1
+
+	; tmp2 = (ypos & ~7) * 80 + screen start
+	lda %tmp1
+	clc
+	adc %tmp2
+	sta %tmp2
+	lda %tmp1 + 1
+	adc %tmp2 + 1
+	clc
+	adc #$30
+	sta %tmp2 + 1
+	
+	; row offset to Y
+	lda %y_start
+	and #7
+	tay
+	
+loop:
+	lda %xpos + 1
+	stz %tmp1 + 1
+	and #0xfe
+	asl
+	rol %tmp1 + 1
+	asl
+	rol %tmp1 + 1
+	
+	clc
+	adc %tmp2
+	sta %tmp1
+	lda %tmp2 + 1
+	adc %tmp1 + 1
+	sta %tmp1 + 1
+	
+	lda %xpos + 1
+	and #1
+	tax
+	lda pixmask, x
+	eor (%tmp1), y
+	sta (%tmp1), y
+	
+	lda %xpos
+	clc
+	adc %xdelta
+	sta %xpos
+	lda %xpos + 1
+	adc %xdelta + 1
+	sta %xpos + 1
+	
+	ldx %y_start
+	inx
+	cpx %y_end
+	bcs done
+	stx %y_start
+	
+	iny
+	cpy #8
+	bne loop
+	
+	ldy #0
+	lda %tmp2
+	clc
+	adc #<640
+	sta %tmp2
+	lda %tmp2 + 1
+	adc #>640
+	sta %tmp2 + 1
+	jmp loop
+done:
+	rts
+	.ctxend
+
+pixmask:
+	.byte 0b00101010
+	.byte 0b00010101
+
+	.context test_line
+test_line:
+	lda #50
+	sta %v_line.y_start
+	lda #100
+	sta %v_line.y_end
+	lda #30
+	sta %v_line.x_start
+	lda #60
+	sta %v_line.x_end
+	
+	jsr v_line
+
+	rts
+	.ctxend
+
+	.context visibility
+	.var2 tmp
+	.var corner0, corner1, corner2
+
+visibility:
+	ldx #0
+do_corner:
+	; [bhi:blo] = x0
+	ldy corners, x
+	sty %corner0
+	lda xpoints, y
+	sta %mult_16_8.blo
+	lda xpoints + 1, y
+	sta %mult_16_8.bhi
+	
+	; [ahi:alo] = y1 - y2
+	ldy corners + 1, x
+	sty %corner1
+	lda xpoints + 2, y
+	ldy corners + 2, x
+	sty %corner2
+	sec
+	sbc xpoints + 2, y
+	sta %mult_16_8.alo
+	ldy %corner1
+	lda xpoints + 3, y
+	ldy %corner2
+	sbc xpoints + 3, y
+	sta %mult_16_8.ahi
+	
+	jsr mult_16_8
+	
+	lda %mult_16_8.result
+	sta %tmp
+	lda %mult_16_8.result + 1
+	sta %tmp + 1
+	
+	; [bhi:blo] = x1
+	ldy %corner1
+	lda xpoints, y
+	sta %mult_16_8.blo
+	lda xpoints + 1, y
+	sta %mult_16_8.bhi
+	
+	; [ahi:alo] = y2 - y0
+	ldy %corner2
+	lda xpoints + 2, y
+	ldy %corner0
+	sec
+	sbc xpoints + 2, y
+	sta %mult_16_8.alo
+	ldy %corner2
+	lda xpoints + 3, y
+	ldy %corner0
+	sbc xpoints + 3, y
+	sta %mult_16_8.ahi
+	
+	jsr mult_16_8
+	
+	lda %mult_16_8.result
+	clc
+	adc %tmp
+	sta %tmp
+	lda %mult_16_8.result + 1
+	adc %tmp + 1
+	sta %tmp + 1
+	
+	; [bhi:blo] = x2
+	ldy %corner2
+	lda xpoints, y
+	sta %mult_16_8.blo
+	lda xpoints + 1, y
+	sta %mult_16_8.bhi
+	
+	; [ahi:alo] = y0 - y1
+	ldy %corner0
+	lda xpoints + 2, y
+	ldy %corner1
+	sec
+	sbc xpoints + 2, y
+	sta %mult_16_8.alo
+	ldy %corner0
+	lda xpoints + 3, y
+	ldy %corner1
+	sbc xpoints + 3, y
+	sta %mult_16_8.ahi
+	
+	jsr mult_16_8
+	
+	lda %mult_16_8.result
+	clc
+	adc %tmp
+	sta %tmp
+	lda %mult_16_8.result + 1
+	adc %tmp + 1
+	;sta %tmp + 1
+	
+	; is tmp < 0?
+	.(
+	;lda %tmp + 1
+	bmi less
+	stz corners + 3, x
+	bra done
+less:
+	lda #1
+	sta corners + 3, x
+done:
+	.)
+	
+	txa
+	clc
+	adc #4
+	tax
+	
+	cpx #24
+	.(
+	beq done
+	jmp do_corner
+done:
+	.)
+	
+	lda #30
+	jsr oswrch
+	
+	ldx #0
+print:
+	lda corners + 3, x
+	clc
+	adc #'0'
+	jsr oswrch
+	txa
+	clc
+	adc #4
+	tax
+	cpx #24
+	bne print
 	
 	rts
 	.ctxend
 
+	.context visibility2
+	.var2 tmp
+	.var corner0, corner1, corner2
+
+visibility2:
+	ldx #0
+do_corner:
+	; [ahi:alo] = x2 - x0
+	ldy corners + 2, x
+	lda xpoints, y
+	sty %corner2
+	ldy corners, x
+	sty %corner0
+	sec
+	sbc xpoints, y
+	sta %mult_16_8.alo
+	ldy %corner2
+	lda xpoints + 1, y
+	ldy %corner0
+	sbc xpoints + 1, y
+	sta %mult_16_8.ahi
+	
+	; [bhi:blo] = y1 - y0
+	ldy corners + 1, x
+	lda xpoints + 2, y
+	sty %corner1
+	ldy %corner0
+	sec
+	sbc xpoints + 2, y
+	sta %mult_16_8.blo
+	ldy %corner1
+	lda xpoints + 3, y
+	ldy %corner0
+	sbc xpoints + 3, y
+	sta %mult_16_8.bhi
+	
+	jsr mult_16_8
+	
+	lda %mult_16_8.result
+	sta %tmp
+	lda %mult_16_8.result + 1
+	sta %tmp + 1
+	
+	; [ahi:alo] = y2 - y0
+	ldy %corner2
+	lda xpoints + 2, y
+	ldy %corner0
+	sec
+	sbc xpoints + 2, y
+	sta %mult_16_8.alo
+	ldy %corner2
+	lda xpoints + 3, y
+	ldy %corner0
+	sbc xpoints + 3, y
+	sta %mult_16_8.ahi
+	
+	; [bhi:blo] = x1 - x0
+	ldy %corner1
+	lda xpoints, y
+	ldy %corner0
+	sec
+	sbc xpoints, y
+	sta %mult_16_8.blo
+	ldy %corner1
+	lda xpoints + 1, y
+	ldy %corner0
+	sbc xpoints + 1, y
+	sta %mult_16_8.bhi
+	
+	jsr mult_16_8
+	
+	; compare tmp, result signed greater than
+	.(
+	lda %tmp
+	cmp %mult_16_8.result
+	lda %tmp + 1
+	sbc %mult_16_8.result + 1
+	bvc skip
+	eor #$80
+skip:
+	bpl greater
+	stz corners + 3, x
+	bra done
+greater:
+	lda #1
+	sta corners + 3, x
+done:
+	.)
+	
+	txa
+	clc
+	adc #4
+	tax
+	
+	cpx #24
+	.(
+	beq done
+	jmp do_corner
+done:
+	.)
+	
+	lda #30
+	jsr oswrch
+	;lda #10
+	;jsr oswrch
+	
+	ldx #0
+print:
+	lda corners + 3, x
+	clc
+	adc #'0'
+	jsr oswrch
+	txa
+	clc
+	adc #4
+	tax
+	cpx #24
+	bne print
+	
+	rts
+	.ctxend

@@ -52,8 +52,13 @@ let layout env first_pass vpc_start insns =
     (fun ctx insn ->
       match insn with
         Context (ht, ctxname, _) ->
-	  let entry_pt = Env.find [ht] ctxname in
-	  Env.replace [env] ctxname entry_pt
+	  begin try
+	    let entry_pt = Env.find [ht] ctxname in
+	    Env.replace [env] ctxname entry_pt
+	  with Not_found ->
+	    Printf.printf "No context entry point in '%s'\n" ctxname;
+	    failwith "Boo."
+	  end
       | _ -> ())
     insns;
   insns', last_vpc

@@ -1849,6 +1849,10 @@ test_render_offscreen:
 	lda #0
 	sta %first
 
+	.protect %draw_offscreen_object.buffer
+
+	stz %draw_offscreen_object.buffer
+
 test_render_loop:
 	lda #<transformation
 	sta %copy_matrix.m_vec_p
@@ -1878,14 +1882,19 @@ test_render_loop:
 	sta %copy_matrix.m_vec_p + 1
 	jsr copy_matrix
 	
-	jsr cls
+	;jsr cls
 	jsr transform_points
 	jsr visibility
 	jsr zero_row_length
-	jsr draw_object
+	;jsr draw_object
 	jsr draw_offscreen_object
 	jsr sort_rows
-	jsr render_scanlines_test
+	jsr render_scanline_diffs
+	;jsr render_scanlines_test
+
+	lda %draw_offscreen_object.buffer
+	eor #1
+	sta %draw_offscreen_object.buffer
 
 	inc rotation_amount
 	jmp test_render_loop
@@ -2006,6 +2015,9 @@ done:
 done:
 	.)
 	
+	; no printing
+	rts
+	
 	lda #30
 	jsr oswrch
 	;lda #10
@@ -2054,7 +2066,6 @@ loop:
 	.var buffer
 
 draw_offscreen_object:
-	stz %buffer
 
 	ldx #0
 loop:
@@ -2402,8 +2413,9 @@ done:
 	sty %row
 loop:
 	lda (%rows), y
+	cmp #2
+	bcc row_empty
 	sta %num
-	beq row_empty
 	
 	ldy #0
 	sty %idx
@@ -2421,11 +2433,11 @@ sort:
 	.(
 search:
 	cmp (%column), y
-	bcc higher
+	bcc current_lower
 	; We found a lower-numbered (more leftward) column.  Remember it.
 	lda (%column), y
 	sty %min_idx
-higher:
+current_lower:
 	iny
 	cpy %num
 	bcc search
@@ -2513,6 +2525,8 @@ set_gcol:
 	.ctxend
 
 	; draw horizontal line from xstart,ypos to xend,ypos.
+	; ypos is in OS units, but xstart & xend are in pixels.
+
 	.context horiz_line
 	.var2 ypos
 	.var xstart, xend
@@ -2567,14 +2581,18 @@ horiz_line:
 	.context render_scanlines_test
 	.var2 ypos
 	.var scanline, go_across, upto
-	.var2 column, colour
+	.var2 column, colour, rows
 
 render_scanlines_test:
 	stz %scanline
-	lda #<1020
+	lda #<$3000
 	sta %ypos
-	lda #>1020
+	lda #>$3000
 	sta %ypos + 1
+	
+	.(
+	lda %draw_offscreen_object.buffer
+	bne buf1
 	
 	lda #<change_columns_0
 	sta %column
@@ -2585,35 +2603,54 @@ render_scanlines_test:
 	sta %colour
 	lda #>switch_colours_0
 	sta %colour + 1
+
+	lda #<row_length_0
+	sta %rows
+	lda #>row_length_0
+	sta %rows + 1
+
+	bra done
+buf1:
+	lda #<change_columns_1
+	sta %column
+	lda #>change_columns_1
+	sta %column + 1
+	
+	lda #<switch_colours_1
+	sta %colour
+	lda #>switch_colours_1
+	sta %colour + 1
+
+	lda #<row_length_1
+	sta %rows
+	lda #>row_length_1
+	sta %rows + 1
+done:
+	.)
 	
 plot_row:
 	stz %go_across
-	ldx %scanline
-	lda row_length_0, x
+	ldy %scanline
+	lda (%rows), y
 	cmp #2
 	bcc empty_row
 	dec
 	sta %upto
 
-	.protect %horiz_line.ypos
-	lda %ypos
-	sta %horiz_line.ypos
-	lda %ypos + 1
-	sta %horiz_line.ypos + 1
-
 plot_pieces:
 	ldy %go_across
 	lda (%colour), y
-	jsr set_gcol
+	and #15
+	sta %hline.colour
 	
 	ldy %go_across
 	lda (%column), y
-	sta %horiz_line.xstart
+	sta %hline.xstart
 	iny
 	lda (%column), y
-	sta %horiz_line.xend
+	sta %hline.xend
 	
-	jsr horiz_line
+	jsr hline
 	
 	inc %go_across
 	lda %go_across
@@ -2641,17 +2678,343 @@ no_hi:
 no_hi:
 	.)
 
+	.(
 	lda %ypos
-	sec
-	sbc #4
+	and #7
+	cmp #7
+	beq add_row
+	.(
+	inc %ypos
+	bne no_hi
+	inc %ypos + 1
+no_hi:
+	.)
+	bra done
+add_row:
+	lda %ypos
+	clc
+	adc #<[640-7]
 	sta %ypos
 	lda %ypos + 1
-	sbc #0
+	adc #>[640-7]
 	sta %ypos + 1
+done:
+	.)
 
 	inc %scanline
-	lda %scanline
 	bne plot_row
 
+	rts
+	.ctxend
+
+	.macro const_word dst val
+	lda #<%val
+	sta %dst
+	lda #>%val
+	sta %dst + 1
+	.mend
+
+	.macro addw_small_const dst cst
+	lda %dst
+	clc
+	adc #%cst
+	sta %dst
+	bcc no_hi
+	inc %dst + 1
+no_hi:
+	.mend
+
+column_positions:
+	.dsb 16,0
+column_is_current:
+	.dsb 16,0
+rhs_colour:
+	.dsb 16,0
+lhs_colour:
+	.dsb 16,0
+
+	.context render_scanline_diffs
+	.var2 rows_current, column_current, colour_current
+	.var2 rows_prev, column_prev, colour_prev
+	.var2 ypos
+	.var scanline, cur_idx, prev_idx
+	.var cur_length, prev_length, next_x_cur, next_x_prev
+	.var cpos, p_fill, c_fill, fill_next, last_column
+	.var last_cfill
+	
+render_scanline_diffs:
+	.(
+	lda %draw_offscreen_object.buffer
+	bne buf1
+
+	; current buffer is #0.
+	@const_word %rows_current, row_length_0
+	@const_word %rows_prev, row_length_1
+	
+	@const_word %column_current, change_columns_0
+	@const_word %column_prev, change_columns_1
+	
+	@const_word %colour_current, switch_colours_0
+	@const_word %colour_prev, switch_colours_1
+
+	bra done
+buf1:
+	; current buffer is #1.
+	@const_word %rows_current, row_length_1
+	@const_word %rows_prev, row_length_0
+	
+	@const_word %column_current, change_columns_1
+	@const_word %column_prev, change_columns_0
+	
+	@const_word %colour_current, switch_colours_1
+	@const_word %colour_prev, switch_colours_0
+done:
+	.)
+	
+	stz %scanline
+	@const_word %ypos, 0x3000
+plot_row:
+	stz %cur_idx
+	stz %prev_idx
+	
+	ldy %scanline
+	lda (%rows_current),y
+	sta %cur_length
+	
+	lda (%rows_prev),y
+	sta %prev_length
+
+	ora %cur_length
+	.(
+	bne skip
+	jmp nothing_to_do
+skip:
+	.)
+
+	stz %cpos
+	
+	.(
+gather_pieces:
+	lda #255
+	sta %next_x_cur
+	sta %next_x_prev
+
+	ldy %cur_idx
+	cpy %cur_length
+	bcs no_more_current
+	lda (%column_current),y
+	sta %next_x_cur
+no_more_current:
+	ldy %prev_idx
+	cpy %prev_length
+	bcs no_more_prev
+	lda (%column_prev),y
+	sta %next_x_prev
+no_more_prev:
+	
+	lda %next_x_prev
+	cmp #255
+	beq current_changes_next
+	
+	lda %next_x_prev
+	cmp %next_x_cur
+	bcs current_changes_next
+
+	; previous changes first...
+	ldy %prev_idx
+	lda (%colour_prev),y
+	and #15
+	ldx %cpos
+	sta rhs_colour,x
+	lda %next_x_prev
+	sta column_positions,x
+	stz column_is_current,x
+	inc %prev_idx
+	inx
+	stx %cpos
+	bra gather_pieces
+	
+current_changes_next:
+	ldy %next_x_cur
+	cpy #255
+	beq finished
+
+	ldy %cur_idx
+	lda (%colour_current),y
+	and #15
+	ldx %cpos
+	sta rhs_colour,x
+	lda %next_x_cur
+	sta column_positions,x
+	lda #1
+	sta column_is_current,x
+	inc %cur_idx
+	inx
+	stx %cpos
+	bra gather_pieces
+finished:
+	.)
+		
+	stz %cur_idx
+	stz %p_fill
+	stz %c_fill
+	stz %fill_next
+	stz %last_column
+	.(
+plot_pieces:
+	ldx %cur_idx
+	lda column_is_current,x
+	beq is_previous
+	; change current colour
+	lda rhs_colour,x
+	sta %c_fill
+	bra changed_current
+is_previous:
+	lda rhs_colour,x
+	sta %p_fill
+changed_current:
+
+	.(
+	lda %fill_next
+	beq dont_fill
+
+	;lda %last_cfill
+	;jsr set_gcol
+	
+	lda %last_cfill
+	sta %hline.colour
+
+	;lda %ypos
+	;sta %horiz_line.ypos
+	;lda %ypos + 1
+	;sta %horiz_line.ypos + 1
+	
+	lda %last_column
+	sta %hline.xstart
+	
+	lda column_positions,x
+	sta %hline.xend
+	
+	jsr hline
+	
+dont_fill:
+	ldx %cur_idx
+	lda column_positions,x
+	sta %last_column
+	lda %c_fill
+	sta %last_cfill
+	.)
+
+	lda %p_fill
+	sec
+	sbc %c_fill
+	sta %fill_next
+	
+	inx
+	stx %cur_idx
+	cpx %cpos
+	bne plot_pieces
+	.)
+
+nothing_to_do:
+
+	.(
+	lda %ypos
+	and #7
+	cmp #7
+	beq add_row
+	.(
+	inc %ypos
+	bne no_hi
+	inc %ypos + 1
+no_hi:
+	.)
+	bra done
+add_row:
+	lda %ypos
+	clc
+	adc #<[640-7]
+	sta %ypos
+	lda %ypos + 1
+	adc #>[640-7]
+	sta %ypos + 1
+done:
+	.)
+
+	@addw_small_const %column_current, columns_per_row
+	@addw_small_const %column_prev, columns_per_row
+	@addw_small_const %colour_current, columns_per_row
+	@addw_small_const %colour_prev, columns_per_row
+	
+	inc %scanline
+	.(
+	beq done
+	jmp plot_row
+done:
+	.)
+
+	rts
+	.ctxend
+
+colours:
+	.byte 0b00000000
+	.byte 0b00000011
+	.byte 0b00001100
+	.byte 0b00001111
+	.byte 0b00110000
+	.byte 0b00110011
+	.byte 0b00111100
+	.byte 0b00111111
+
+	.context hline
+	.var xstart, xend
+	.var length
+	.var colour
+	.var2 ptr
+hline:
+	ldx %colour
+	lda colours,x
+	sta %colour
+	lsr %xstart
+	lsr %xend
+	lda %xend
+	sec
+	sbc %xstart
+	sta %length
+	lda %xstart
+	sta %ptr
+	lda #0
+	asl %ptr
+	rol
+	asl %ptr
+	rol
+	asl %ptr
+	rol
+	sta %ptr + 1
+	lda %render_scanline_diffs.ypos
+	clc
+	adc %ptr
+	sta %ptr
+	lda %render_scanline_diffs.ypos + 1
+	adc %ptr + 1
+	sta %ptr + 1
+	ldx %length
+	beq done
+	ldy %colour
+loop:
+	tya
+	sta (%ptr)
+	lda %ptr
+	clc
+	adc #8
+	sta %ptr
+	.(
+	bcc no_hi
+	inc %ptr + 1
+no_hi:
+	.)
+	dex
+	bne loop
+done:
 	rts
 	.ctxend

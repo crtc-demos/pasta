@@ -22,6 +22,8 @@ let rec map_expr fn = function
   | LoByte a -> fn (LoByte (map_expr fn a))
   | HiByte a -> fn (HiByte (map_expr fn a))
 
+exception UnknownMacroArg of string
+
 let subst_macro_args expr formal_args actual_args =
   let f2a = Hashtbl.create 5 in
   let rec build_hash form act =
@@ -33,7 +35,12 @@ let subst_macro_args expr formal_args actual_args =
   build_hash formal_args actual_args;
   map_expr
     (function
-        VarRef [name] -> Hashtbl.find f2a name
+        VarRef [name] ->
+	  begin try
+	    Hashtbl.find f2a name
+	  with Not_found ->
+	    raise (UnknownMacroArg name)
+	  end
       | x -> x)
     expr
 

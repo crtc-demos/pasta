@@ -2968,24 +2968,23 @@ colours:
 
 	.context hline
 	.var xstart, xend
-	.var length
-	.var colour
+	.var colour, tmp
 	.var2 ptr
 hline:
 	ldx %colour
 	lda colours,x
 	sta %colour
-	lsr %xstart
-	lsr %xend
+
 	lda %xend
 	sec
 	sbc %xstart
-	sta %length
+	tax
+	beq done
+
 	lda %xstart
+	and #$fe
 	sta %ptr
 	lda #0
-	asl %ptr
-	rol
 	asl %ptr
 	rol
 	asl %ptr
@@ -2998,8 +2997,35 @@ hline:
 	lda %render_scanline_diffs.ypos + 1
 	adc %ptr + 1
 	sta %ptr + 1
-	ldx %length
+	.(
+	lda #1
+	bit %xstart
+	beq no_first_pixel
+	lda (%ptr)
+	and #0b10101010
+	sta %tmp
+	lda %colour
+	and #0b01010101
+	ora %tmp
+	sta (%ptr)
+	lda %ptr
+	clc
+	adc #8
+	sta %ptr
+	.(
+	bcc no_hi
+	inc %ptr + 1
+no_hi:
+	.)
+	dex
 	beq done
+no_first_pixel:
+	.)
+	; halve length.
+	txa
+	lsr
+	tax
+	beq maybe_draw_end_pixel
 	ldy %colour
 loop:
 	tya
@@ -3015,6 +3041,21 @@ no_hi:
 	.)
 	dex
 	bne loop
+
+maybe_draw_end_pixel:
+	.(
+	lda #1
+	bit %xend
+	beq no_last_pixel
+	lda (%ptr)
+	and #0b01010101
+	sta %tmp
+	lda %colour
+	and #0b10101010
+	ora %tmp
+	sta (%ptr)
+no_last_pixel:
+	.)
 done:
 	rts
 	.ctxend

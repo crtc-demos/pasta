@@ -255,11 +255,23 @@ let find_dependencies prog =
       | _ -> ())
     prog
 
+exception UnknownVariable of string
+
 let lookup_var ctxname varname =
   let var =
     match varname with
-      [single] -> (Context.ctxs#get ctxname)#get_var single
-    | [qual; name] -> (Context.ctxs#get [qual])#get_var name
+      [single] ->
+        begin try
+	  (Context.ctxs#get ctxname)#get_var single
+	with Not_found ->
+	  raise (UnknownVariable single)
+	end
+    | [qual; name] ->
+        begin try
+	  (Context.ctxs#get [qual])#get_var name
+	with Not_found ->
+	  raise (UnknownVariable (qual ^ "." ^ name))
+	end
     | _ -> failwith "Nested contexts aren't supported yet" in
   Expr.Int (Int32.of_int var#get_loc)
 

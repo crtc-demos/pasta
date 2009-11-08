@@ -19,7 +19,7 @@
 ; 8 bytes.
 	.alias vec_tmp $40
 
-; 0x00-0x3f can be used as X-indexed stack.
+; 0x00-0x3f can be used as X-indexed stack. (Not used at present.)
 	.alias xsp $48
 
 ; three 256-byte chunks, "byte-planed"
@@ -50,6 +50,9 @@
 	; 256 * 8 bytes
 	.alias switch_colours_1 $b600
 	; (finishes at $be00)
+
+	; 256 * 8 bytes
+	.alias midpoint_depth $2800
 
 	; Declare ZP locations to use for automatically-allocated temporaries.
 	.temps $70..$8f
@@ -739,6 +742,8 @@ rot_matrix:
 
 	; Make rotation matrix about Y axis, from angle held in accumulator.
 	; corrupts tmp1 (by calling sin/cos), A, X, Y.
+	; this is dumb. Just write directly to rot_matrix, don't bother with
+	; indirection.
 	
 	.context make_yrot_matrix
 	
@@ -851,6 +856,7 @@ make_yrot_matrix:
 
 	; Make rotation matrix about Y axis, from angle held in accumulator.
 	; corrupts tmp1 (by calling sin/cos), A, X, Y.
+	; this is dumb too. See comment above.
 	
 	.context make_xrot_matrix
 	
@@ -1445,10 +1451,8 @@ iter:
 	jsr scaled_div
 	lda %scaled_div.result
 	sta xpoints,x
-	inx
 	lda %scaled_div.result+1
-	sta xpoints,x
-	inx
+	sta xpoints+1,x
 	
 	; dehomogenise Y
 	ldy #2
@@ -1465,15 +1469,18 @@ iter:
 	sta %scaled_div.in_b + 1
 	jsr scaled_div
 	lda %scaled_div.result
-	sta xpoints,x
-	inx
+	sta xpoints+2,x
 	lda %scaled_div.result+1
-	sta xpoints,x
-	inx
+	sta xpoints+3,x
 	
-	; store Z too?
-	inx
-	inx
+	; store Z, but don't bother de-homogenising (only used to crudely 
+	; disambiguate depth).
+	ldy #4
+	lda (%matrix_mult.m_result_p),y
+	sta xpoints+4,x
+	iny
+	lda (%matrix_mult.m_result_p),y
+	sta xpoints+5,x
 	
 	; move to next input point
 	lda %matrix_mult.m_vec_p
@@ -1485,6 +1492,11 @@ iter:
 	inc %matrix_mult.m_vec_p+1
 nohi:
 	.)
+	
+	txa
+	clc
+	adc #6
+	tax
 	
 	cpx #48
 	bcc iter
@@ -1977,7 +1989,7 @@ do_corner:
 	; polygons.
 	lda %tmp
 	sec
-	sbc #192
+	sbc #128
 	sta %tmp
 	.(
 	bcs no_hi
@@ -2064,8 +2076,12 @@ loop:
 	.context draw_offscreen_object
 	.var r_tmp1, visibility
 	.var buffer
+	.var2 midpoint_tmp
 
 draw_offscreen_object:
+
+	;lda #30
+	;jsr oswrch
 
 	ldx #0
 loop:
@@ -2086,6 +2102,10 @@ loop:
 	clc
 	adc #128
 	sta %render_line.y_start
+	lda xpoints+4,y
+	sta %midpoint_tmp
+	lda xpoints+5,y
+	sta %midpoint_tmp + 1
 	
 	lda lines+1,x
 	asl
@@ -2103,6 +2123,31 @@ loop:
 	clc
 	adc #128
 	sta %render_line.y_end
+	lda %midpoint_tmp
+	clc
+	adc xpoints+4,y
+	sta %midpoint_tmp
+	lda %midpoint_tmp + 1
+	adc xpoints+5,y
+	sta %midpoint_tmp + 1
+	
+	; ??? check values for sanity
+	lda %midpoint_tmp
+	clc
+	adc #<256
+	sta %midpoint_tmp
+	lda %midpoint_tmp + 1
+	adc #>256
+	sta %midpoint_tmp + 1
+	lsr
+	ror %midpoint_tmp
+	lsr
+	ror %midpoint_tmp
+	lda %midpoint_tmp
+	sta %render_line.midpoint
+	
+	;jsr pr_hex
+	;jsr pr_newl
 	
 	stz %visibility
 	
@@ -2154,9 +2199,59 @@ invisible:
 	tax
 	
 	cmp #48
-	bne loop
+	.(
+	beq skip
+	jmp loop
+skip:
+	.)
 	rts
 	.ctxend
+
+	.notemps pr_digit, pr_hex, pr_newl
+
+pr_digit:
+	.(
+	pha
+	cmp #10
+	bcc less_than_10
+	clc
+	adc #'a'-10
+	bra print
+less_than_10:
+	clc
+	adc #'0'-0
+print:
+	jsr oswrch
+	pla
+	rts
+	.)
+
+pr_hex:
+	.(
+	pha
+	pha
+	lsr
+	lsr
+	lsr
+	lsr
+	jsr pr_digit
+	pla
+	and #15
+	jsr pr_digit
+	pla
+	rts
+	.)
+
+pr_newl:
+	.(
+	pha
+	lda #10
+	jsr oswrch
+	lda #13
+	jsr oswrch
+	pla
+	rts
+	.)
 
 	; inputs: (x_start, y_start) (x_end, y_end)
 	;         lhs_colour, rhs_colour
@@ -2166,8 +2261,9 @@ invisible:
 	.var x_start, x_end
 	.var lhs_colour, rhs_colour
 	.var colour_byte
+	.var midpoint
 	.var2 xpos, xdelta
-	.var2 rows, column, colour
+	.var2 rows, column, colour, midpts
 	.var2 tmp
 
 render_line:
@@ -2313,6 +2409,15 @@ buf1:
 done:
 	.)
 	
+	; only one lots of midpoints
+	lda #<midpoint_depth
+	clc
+	adc %tmp
+	sta %midpts
+	lda #>midpoint_depth
+	adc %tmp + 1
+	sta %midpts + 1
+	
 loop:
 	ldy %y_start
 	lda (%rows), y
@@ -2327,6 +2432,9 @@ loop:
 	
 	lda %colour_byte
 	sta (%colour), y
+	
+	lda %midpoint
+	sta (%midpts), y
 	
 	lda %xpos
 	clc
@@ -2367,8 +2475,10 @@ no_hi:
 	.ctxend
 
 	.context sort_rows
-	.var2 rows, column, colour
+	.var2 rows, column, colour, midpts
 	.var row, idx, min_idx, num
+	.var closest, write_idx, copy_from
+	.var merged_colour
 	
 sort_rows:
 	.(
@@ -2409,12 +2519,21 @@ buf1:
 done:
 	.)
 	
+	lda #<midpoint_depth
+	sta %midpts
+	lda #>midpoint_depth
+	sta %midpts + 1
+	
 	ldy #0
 	sty %row
 loop:
 	lda (%rows), y
 	cmp #2
-	bcc row_empty
+	.(
+	bcs skip
+	jmp row_empty
+skip:
+	.)
 	sta %num
 	
 	ldy #0
@@ -2472,6 +2591,18 @@ current_lower:
 	txa
 	ldy %idx
 	sta (%colour), y
+	
+	ldy %min_idx
+	lda (%midpts), y
+	tax
+	ldy %idx
+	lda (%midpts), y
+	; A = midpts[idx], X = midpts[min_idx]
+	ldy %min_idx
+	sta (%midpts), y
+	txa
+	ldy %idx
+	sta (%midpts), y
 no_swap:
 	.)
 	
@@ -2480,33 +2611,157 @@ no_swap:
 	bra sort
 done:
 
+	; we're re-using variables here, be careful.
+	.(
+	ldy #0
+	sty %min_idx
+	sty %write_idx
+	
+cleanup:
+	.(
+	;bra skip_cleanup
+	ldy %min_idx
+	lda (%column),y
+find_bounds:
+	iny
+	cpy %num
+	bcs different
+	cmp (%column),y
+	beq find_bounds
+different:
+	sty %idx
+	.)
+	; now min_idx (inclusive) to idx (exclusive) should have the same
+	; column positions.
+	lda #255
+	sta %copy_from
+	sta %closest
+	ldy %min_idx
+	.(
+loop:
+	lda (%midpts),y
+	cmp %closest
+	bcs not_this_one
+	sta %closest
+	sty %copy_from
+not_this_one:
+	iny
+	cpy %idx
+	bcc loop
+	.)
+	
+	lda %min_idx
+	sta %copy_from
+	
+	.(
+	lda %idx
+	sec
+	sbc %min_idx
+	cmp #2
+	bcc only_1
+	bne not_2
+	ldy %min_idx
+	lda (%colour),y
+	pha
+	lsr
+	lsr
+	lsr
+	lsr
+	sta %merged_colour
+	iny
+	lda (%colour),y
+	and #15
+	cmp %merged_colour
+	beq use_stacked_rhs
+	pla
+	and #15
+	sta %merged_colour
+	lda (%colour),y
+	pha
+	lsr
+	lsr
+	lsr
+	lsr
+	cmp %merged_colour
+	beq use_stacked_rhs
+	; drop stack top
+	pla
+	lda #7
+	sta %merged_colour
+	bra done
+use_stacked_rhs:
+	pla
+	and #15
+	sta %merged_colour
+	bra done
+not_2:
+	; a complicated corner. Choose black and hope for the best.
+	lda #0
+	sta %merged_colour
+	bra done
+only_1:
+	ldy %copy_from
+	lda (%colour),y
+	sta %merged_colour
+done:
+	.)
+	
+	lda %idx
+	sta %min_idx
+
+	.(
+	ldy %copy_from
+	cpy %write_idx
+	beq skip_copying
+	; these two shouldn't be necessary...
+	;cpy #255
+	;beq skip_copying
+	lda (%column),y
+	tax
+	lda (%midpts),y
+	ldy %write_idx
+	sta (%midpts),y
+	txa
+	sta (%column),y
+skip_copying:
+	ldy %write_idx
+	lda %merged_colour
+	sta (%colour),y
+	inc %write_idx
+	.)
+
+	lda %min_idx
+	cmp %num
+	.(
+	bcs skip
+	jmp cleanup
+skip:
+	.)
+	
+	ldy %row
+	lda %write_idx
+	sta (%rows), y
+skip_cleanup:
+	.)
+
 row_empty:
 
 	; move to next row of columns
-	lda %column
-	clc
-	adc #columns_per_row
-	sta %column
-	.(
-	bcc no_hi
-	inc %column + 1
-no_hi:
-	.)
+	@addw_small_const %column, columns_per_row
 
 	; move to next row of colours
-	lda %colour
-	clc
-	adc #columns_per_row
-	sta %colour
-	.(
-	bcc no_hi
-	inc %colour + 1
-no_hi:
-	.)
+	@addw_small_const %colour, columns_per_row
+
+	; move to next row of midpoints
+	@addw_small_const %midpts, columns_per_row
 
 	inc %row
 	ldy %row
-	bne loop
+	.(
+	beq skip
+	jmp loop
+skip:
+	.)
 	
 	rts
 	.ctxend
@@ -2724,22 +2979,13 @@ done:
 no_hi:
 	.mend
 
-column_positions:
-	.dsb 16,0
-column_is_current:
-	.dsb 16,0
-rhs_colour:
-	.dsb 16,0
-lhs_colour:
-	.dsb 16,0
-
 	.context render_scanline_diffs
 	.var2 rows_current, column_current, colour_current
 	.var2 rows_prev, column_prev, colour_prev
 	.var2 ypos
 	.var scanline, cur_idx, prev_idx
 	.var cur_length, prev_length, next_x_cur, next_x_prev
-	.var cpos, p_fill, c_fill, fill_next, last_column
+	.var p_fill, c_fill, fill_next, upto_column, last_column
 	.var last_cfill
 	
 render_scanline_diffs:
@@ -2791,10 +3037,14 @@ plot_row:
 skip:
 	.)
 
-	stz %cpos
-	
+	stz %fill_next
+	stz %last_column
+	stz %upto_column
+	stz %c_fill
+	stz %p_fill
+
 	.(
-gather_pieces:
+plot_pieces:
 	lda #255
 	sta %next_x_cur
 	sta %next_x_prev
@@ -2816,23 +3066,51 @@ no_more_prev:
 	cmp #255
 	beq current_changes_next
 	
-	lda %next_x_prev
-	cmp %next_x_cur
-	bcs current_changes_next
+	lda %next_x_cur
+	cmp #255
+	beq must_be_previous
+	;beq finished
+	;bra current_changes_next
+	
+	lda %next_x_cur
+	cmp %next_x_prev
+	bcc current_changes_next
 
+must_be_previous:
 	; previous changes first...
+
 	ldy %prev_idx
+	lda %next_x_prev
+	sta %upto_column
+;	cmp %last_column
+;	.(
+;	bne not_zero_length
+;	iny
+;	cpy %prev_length
+;	.(
+;	bcs prev_overflow
+;	lda (%colour_current),y
+;	lsr
+;	lsr
+;	lsr
+;	lsr
+;	bra not_overflow
+;prev_overflow:
+;	lda #0
+;not_overflow:
+;	.)
+;	sta %p_fill
+;	sty %prev_idx
+;	bra skip_filling
+;not_zero_length:
+;	.)
+
 	lda (%colour_prev),y
 	and #15
-	ldx %cpos
-	sta rhs_colour,x
-	lda %next_x_prev
-	sta column_positions,x
-	stz column_is_current,x
-	inc %prev_idx
-	inx
-	stx %cpos
-	bra gather_pieces
+	sta %p_fill
+	iny
+	sty %prev_idx
+	bra render_piece
 	
 current_changes_next:
 	ldy %next_x_cur
@@ -2840,80 +3118,65 @@ current_changes_next:
 	beq finished
 
 	ldy %cur_idx
+	lda %next_x_cur
+	sta %upto_column
+;	cmp %last_column
+;	.(
+;	bne not_zero_length
+;	iny
+;	cpy %cur_length
+;	.(
+;	bcs cur_overflow
+;	lda (%colour_current),y
+;	lsr
+;	lsr
+;	lsr
+;	lsr
+;	bra not_overflow
+;cur_overflow:
+;	lda #0
+;not_overflow:
+;	.)
+;	sta %c_fill
+;	sty %cur_idx
+;	bra skip_filling
+;not_zero_length:
+;	.)
+
 	lda (%colour_current),y
 	and #15
-	ldx %cpos
-	sta rhs_colour,x
-	lda %next_x_cur
-	sta column_positions,x
-	lda #1
-	sta column_is_current,x
-	inc %cur_idx
-	inx
-	stx %cpos
-	bra gather_pieces
-finished:
-	.)
-		
-	stz %cur_idx
-	stz %p_fill
-	stz %c_fill
-	stz %fill_next
-	stz %last_column
-	.(
-plot_pieces:
-	ldx %cur_idx
-	lda column_is_current,x
-	beq is_previous
-	; change current colour
-	lda rhs_colour,x
 	sta %c_fill
-	bra changed_current
-is_previous:
-	lda rhs_colour,x
-	sta %p_fill
-changed_current:
+	iny
+	sty %cur_idx
 
-	.(
+render_piece:
 	lda %fill_next
-	beq dont_fill
+	beq skip_filling
 
-	;lda %last_cfill
-	;jsr set_gcol
-	
 	lda %last_cfill
 	sta %hline.colour
 
-	;lda %ypos
-	;sta %horiz_line.ypos
-	;lda %ypos + 1
-	;sta %horiz_line.ypos + 1
-	
 	lda %last_column
 	sta %hline.xstart
 	
-	lda column_positions,x
+	lda %upto_column
 	sta %hline.xend
 	
 	jsr hline
-	
-dont_fill:
-	ldx %cur_idx
-	lda column_positions,x
+
+skip_filling:
+	lda %upto_column
 	sta %last_column
+
 	lda %c_fill
 	sta %last_cfill
-	.)
-
-	lda %p_fill
 	sec
-	sbc %c_fill
+	sbc %p_fill
+	;lda #1
 	sta %fill_next
 	
-	inx
-	stx %cur_idx
-	cpx %cpos
-	bne plot_pieces
+	jmp plot_pieces
+finished:
 	.)
 
 nothing_to_do:

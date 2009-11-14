@@ -70,6 +70,7 @@ entry:
 	jsr load_sintab
 	jsr cls
 	jsr test_render_offscreen
+	;jsr test_render
 	.(
 rept:
 	jsr test_line
@@ -1898,6 +1899,7 @@ test_render_loop:
 	jsr transform_points
 	jsr visibility
 	jsr zero_row_length
+	;jsr blank_various_buffers
 	;jsr draw_object
 	jsr draw_offscreen_object
 	jsr sort_rows
@@ -2070,6 +2072,45 @@ loop:
 	inx
 	bne loop
 	.)
+	rts
+	.ctxend
+
+	.context blank_various_buffers
+	.var2 columns, colours, depths
+	.var number
+	
+blank_various_buffers:
+	.(
+	lda %draw_offscreen_object.buffer
+	bne buf1
+	@const_word %columns, change_columns_0
+	@const_word %colours, switch_colours_0
+	bra done
+buf1:
+	@const_word %columns, change_columns_1
+	@const_word %colours, switch_colours_1
+done:
+	.)
+	@const_word %depths, midpoint_depth
+	
+	lda #8
+	sta %number
+	
+loop2:
+	ldy #0
+	lda #0
+loop:
+	sta (%columns),y
+	sta (%colours),y
+	sta (%depths),y
+	iny
+	bne loop
+	inc %columns + 1
+	inc %colours + 1
+	inc %depths + 1
+	dec %number
+	bne loop2
+	
 	rts
 	.ctxend
 
@@ -2426,6 +2467,9 @@ loop:
 	sta (%rows), y
 	ply
 	
+	;cpy #8
+	;bcs overflow
+	
 	; y is write-offset for this scan line
 	lda %xpos + 1
 	sta (%column), y
@@ -2472,6 +2516,11 @@ no_hi:
 	bcc loop
 	
 	rts
+	
+overflow:
+	lda #'E'
+	jsr oswrch
+	rts
 	.ctxend
 
 	.context sort_rows
@@ -2485,48 +2534,22 @@ sort_rows:
 	lda %draw_offscreen_object.buffer
 	bne buf1
 	
-	lda #<row_length_0
-	sta %rows
-	lda #>row_length_0
-	sta %rows + 1
-	
-	lda #<change_columns_0
-	sta %column
-	lda #>change_columns_0
-	sta %column + 1
-	
-	lda #<switch_colours_0
-	sta %colour
-	lda #>switch_colours_0
-	sta %colour + 1
-	
+	@const_word %rows, row_length_0
+	@const_word %column, change_columns_0
+	@const_word %colour, switch_colours_0
 	bra done
 buf1:
-	lda #<row_length_1
-	sta %rows
-	lda #>row_length_1
-	sta %rows + 1
-	
-	lda #<change_columns_1
-	sta %column
-	lda #>change_columns_1
-	sta %column + 1
-	
-	lda #<switch_colours_1
-	sta %colour
-	lda #>switch_colours_1
-	sta %colour + 1
+	@const_word %rows, row_length_1
+	@const_word %column, change_columns_1
+	@const_word %colour, switch_colours_1
 done:
 	.)
 	
-	lda #<midpoint_depth
-	sta %midpts
-	lda #>midpoint_depth
-	sta %midpts + 1
+	@const_word %midpts, midpoint_depth
 	
-	ldy #0
-	sty %row
+	stz %row
 loop:
+	ldy %row
 	lda (%rows), y
 	cmp #2
 	.(
@@ -2536,10 +2559,9 @@ skip:
 	.)
 	sta %num
 	
-	ldy #0
-	sty %idx
+	stz %idx
 sort:
-	; Y = %idx on entry to loop
+	ldy %idx
 	lda (%column), y
 	
 	iny
@@ -2561,7 +2583,7 @@ current_lower:
 	cpy %num
 	bcc search
 	.)
-	
+		
 	.(
 	ldy %min_idx
 	cpy #255
@@ -2607,19 +2629,17 @@ no_swap:
 	.)
 	
 	inc %idx
-	ldy %idx
 	bra sort
 done:
 
 	; we're re-using variables here, be careful.
 	.(
-	ldy #0
-	sty %min_idx
-	sty %write_idx
+	stz %min_idx
+	stz %write_idx
 	
 cleanup:
 	.(
-	;bra skip_cleanup
+	;jmp skip_cleanup
 	ldy %min_idx
 	lda (%column),y
 find_bounds:
@@ -2660,6 +2680,18 @@ not_this_one:
 	cmp #2
 	bcc only_1
 	bne not_2
+	
+	; Both columns change to same RHS colour (doesn't help).
+	;ldy %min_idx
+	;lda (%colour),y
+	;and #15
+	;sta %merged_colour
+	;iny
+	;lda (%colour),y
+	;and #15
+	;cmp %merged_colour
+	;beq done
+	
 	ldy %min_idx
 	lda (%colour),y
 	pha
@@ -2690,10 +2722,30 @@ not_this_one:
 	sta %merged_colour
 	bra done
 use_stacked_rhs:
+	.(
+	ldy %min_idx
+	iny
+	iny
+	cpy %num
+	bcs really_use_stacked
+	; drop
 	pla
-	and #15
+	; use next LHS colour
+	lda (%colour),y
+	lsr
+	lsr
+	lsr
+	lsr
 	sta %merged_colour
 	bra done
+really_use_stacked:
+	pla
+	;and #15
+	; this makes no sense at all?
+	lda #7
+	sta %merged_colour
+	bra done
+	.)
 not_2:
 	; a complicated corner. Choose black and hope for the best.
 	lda #0
@@ -2756,7 +2808,6 @@ row_empty:
 	@addw_small_const %midpts, columns_per_row
 
 	inc %row
-	ldy %row
 	.(
 	beq skip
 	jmp loop
@@ -2837,6 +2888,8 @@ horiz_line:
 	.var2 ypos
 	.var scanline, go_across, upto
 	.var2 column, colour, rows
+	.var2 old_column, old_rows
+	.var skip
 
 render_scanlines_test:
 	stz %scanline
@@ -2864,6 +2917,9 @@ render_scanlines_test:
 	lda #>row_length_0
 	sta %rows + 1
 
+	@const_word %old_column, change_columns_1
+	@const_word %old_rows, row_length_1
+
 	bra done
 buf1:
 	lda #<change_columns_1
@@ -2880,10 +2936,20 @@ buf1:
 	sta %rows
 	lda #>row_length_1
 	sta %rows + 1
+	
+	@const_word %old_column, change_columns_0
+	@const_word %old_rows, row_length_0
 done:
 	.)
 	
 plot_row:
+	lda #0
+	sta %hline.colour
+	sta %hline.xstart
+	lda #159
+	sta %hline.xend
+	jsr hline
+
 	stz %go_across
 	ldy %scanline
 	lda (%rows), y
@@ -2891,6 +2957,9 @@ plot_row:
 	bcc empty_row
 	dec
 	sta %upto
+
+	;lda #3
+	;sta %skip
 
 plot_pieces:
 	ldy %go_across
@@ -2905,7 +2974,11 @@ plot_pieces:
 	lda (%column), y
 	sta %hline.xend
 	
+	;dec %skip
+	;bne miss_hline
+	
 	jsr hline
+miss_hline:
 	
 	inc %go_across
 	lda %go_across
@@ -2986,7 +3059,7 @@ no_hi:
 	.var scanline, cur_idx, prev_idx
 	.var cur_length, prev_length, next_x_cur, next_x_prev
 	.var p_fill, c_fill, fill_next, upto_column, last_column
-	.var last_cfill
+	.var last_cfill, last_cfill_column
 	
 render_scanline_diffs:
 	.(
@@ -3020,9 +3093,6 @@ done:
 	stz %scanline
 	@const_word %ypos, 0x3000
 plot_row:
-	stz %cur_idx
-	stz %prev_idx
-	
 	ldy %scanline
 	lda (%rows_current),y
 	sta %cur_length
@@ -3036,6 +3106,9 @@ plot_row:
 	jmp nothing_to_do
 skip:
 	.)
+
+	stz %cur_idx
+	stz %prev_idx
 
 	stz %fill_next
 	stz %last_column
@@ -3062,21 +3135,25 @@ no_more_current:
 	sta %next_x_prev
 no_more_prev:
 	
+	.(
 	lda %next_x_prev
 	cmp #255
-	beq current_changes_next
-	
+	beq end_of_prev
 	lda %next_x_cur
 	cmp #255
-	beq must_be_previous
-	;beq finished
-	;bra current_changes_next
-	
-	lda %next_x_cur
+	beq previous_changes_next
+	; neither previous nor next are 255.
 	cmp %next_x_prev
 	bcc current_changes_next
+	bra previous_changes_next
+end_of_prev:
+	lda %next_x_cur
+	cmp #255
+	beq finished
+	bra current_changes_next
+	.)
 
-must_be_previous:
+previous_changes_next:
 	; previous changes first...
 
 	ldy %prev_idx
@@ -3086,20 +3163,6 @@ must_be_previous:
 ;	.(
 ;	bne not_zero_length
 ;	iny
-;	cpy %prev_length
-;	.(
-;	bcs prev_overflow
-;	lda (%colour_current),y
-;	lsr
-;	lsr
-;	lsr
-;	lsr
-;	bra not_overflow
-;prev_overflow:
-;	lda #0
-;not_overflow:
-;	.)
-;	sta %p_fill
 ;	sty %prev_idx
 ;	bra skip_filling
 ;not_zero_length:
@@ -3113,31 +3176,15 @@ must_be_previous:
 	bra render_piece
 	
 current_changes_next:
-	ldy %next_x_cur
-	cpy #255
-	beq finished
-
 	ldy %cur_idx
 	lda %next_x_cur
 	sta %upto_column
+	sta %last_cfill_column
 ;	cmp %last_column
 ;	.(
 ;	bne not_zero_length
+;	stz %c_fill
 ;	iny
-;	cpy %cur_length
-;	.(
-;	bcs cur_overflow
-;	lda (%colour_current),y
-;	lsr
-;	lsr
-;	lsr
-;	lsr
-;	bra not_overflow
-;cur_overflow:
-;	lda #0
-;not_overflow:
-;	.)
-;	sta %c_fill
 ;	sty %cur_idx
 ;	bra skip_filling
 ;not_zero_length:
@@ -3178,6 +3225,28 @@ skip_filling:
 	jmp plot_pieces
 finished:
 	.)
+
+	; deal with badly-formed data. Easier than fixing it up properly?
+	lda %c_fill
+	beq nothing_to_do
+	
+	lda %last_cfill_column
+	sta %hline.xstart
+
+	ldy %prev_length
+	beq nothing_to_do
+	dey
+	lda (%column_prev),y
+	ldy %cur_length
+	beq nothing_to_do
+	dey
+	cmp (%column_current),y
+	bcc nothing_to_do
+
+	; previous is higher. Blank rest of line.
+	sta %hline.xend
+	stz %hline.colour
+	jsr hline
 
 nothing_to_do:
 

@@ -11,18 +11,22 @@ type token =
   | SCOPE
   | SCEND
   | RSQUARE
+  | RSHIFT
   | RBRACKET
   | RANGLE
   | PROTECT
   | PLUS
   | PERCENT
   | ORIGIN
+  | OR
   | NUM of (int32)
   | NOTEMPS
+  | NOT
   | MINUS
   | MEND
   | MACRO
   | LSQUARE
+  | LSHIFT
   | LBRACKET
   | LANGLE
   | LABEL of (string)
@@ -30,6 +34,7 @@ type token =
   | INSN of (M6502.opcode)
   | HASH
   | EXPMACRO of (string)
+  | EOR
   | EOL
   | EOF
   | DSB
@@ -41,6 +46,8 @@ type token =
   | COMMA
   | COLON
   | ASCII
+  | ARSHIFT
+  | AND
   | ALIAS
   | A
 

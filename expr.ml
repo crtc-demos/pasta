@@ -4,7 +4,14 @@ type const_expr =
   | Minus of const_expr * const_expr
   | Times of const_expr * const_expr
   | Divide of const_expr * const_expr
+  | And of const_expr * const_expr
+  | Or of const_expr * const_expr
+  | Eor of const_expr * const_expr
+  | Lshift of const_expr * const_expr
+  | Rshift of const_expr * const_expr
+  | Arshift of const_expr * const_expr
   | Uminus of const_expr
+  | Not of const_expr
   | LoByte of const_expr
   | HiByte of const_expr
   | ExLabel of string
@@ -21,6 +28,13 @@ let rec map_expr fn = function
   | Uminus a -> fn (Uminus (map_expr fn a))
   | LoByte a -> fn (LoByte (map_expr fn a))
   | HiByte a -> fn (HiByte (map_expr fn a))
+  | Not a -> fn (Not (map_expr fn a))
+  | Arshift (a, b) -> fn (Arshift (map_expr fn a, map_expr fn b))
+  | Rshift (a, b) -> fn (Rshift (map_expr fn a, map_expr fn b))
+  | Lshift (a, b) -> fn (Lshift (map_expr fn a, map_expr fn b))
+  | Eor (a, b) -> fn (Eor (map_expr fn a, map_expr fn b))
+  | Or (a, b) -> fn (Or (map_expr fn a, map_expr fn b))
+  | And (a, b) -> fn (And (map_expr fn a, map_expr fn b))
 
 exception UnknownMacroArg of string
 
@@ -56,6 +70,14 @@ let eval ?env expr =
     | Uminus a -> Int32.neg (eval' a)
     | HiByte a -> Int32.logand (Int32.shift_right_logical (eval' a) 8) 0xffl
     | LoByte a -> Int32.logand (eval' a) 0xffl
+    | Not a -> Int32.lognot (eval' a)
+    | Arshift (a, b) -> Int32.shift_right (eval' a) (Int32.to_int (eval' b))
+    | Rshift (a, b) ->
+        Int32.shift_right_logical (eval' a) (Int32.to_int (eval' b))
+    | Lshift (a, b) -> Int32.shift_left (eval' a) (Int32.to_int (eval' b))
+    | Eor (a, b) -> Int32.logxor (eval' a) (eval' b)
+    | Or (a, b) -> Int32.logor (eval' a) (eval' b)
+    | And (a, b) -> Int32.logand (eval' a) (eval' b)
     | ExLabel lab ->
 	begin try
 	  match env with
@@ -80,7 +102,14 @@ let to_string expr =
   | Minus (a, b) -> appc '('; emit a; appc '-'; emit b; appc ')'
   | Times (a, b) -> appc '('; emit a; appc '*'; emit b; appc ')'
   | Divide (a, b) -> appc '('; emit a; appc '/'; emit b; appc ')'
+  | Arshift (a, b) -> appc '('; emit a; app ">>>"; emit b; appc ')'
+  | Rshift (a, b) -> appc '('; emit a; app ">>"; emit b; appc ')'
+  | Lshift (a, b) -> appc '('; emit a; app ">>"; emit b; appc ')'
+  | Eor (a, b) -> appc '('; emit a; appc '^'; emit b; appc ')'
+  | Or (a, b) -> appc '('; emit a; appc '|'; emit b; appc ')'
+  | And (a, b) -> appc '('; emit a; appc '&'; emit b; appc ')'
   | Uminus a -> app "-("; emit a; appc ')'
+  | Not a -> app "~("; emit a; appc ')'
   | HiByte a -> app ">("; emit a; appc ')'
   | LoByte a -> app "<("; emit a; appc ')'
   | ExLabel lab -> app lab

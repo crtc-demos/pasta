@@ -51,9 +51,6 @@
 	.alias switch_colours_1 $b600
 	; (finishes at $be00)
 
-	; 256 * 8 bytes
-	.alias midpoint_depth $2800
-
 	; Declare ZP locations to use for automatically-allocated temporaries.
 	.temps $70..$8f
 	.temps $4a..$4f
@@ -1061,11 +1058,12 @@ lines:
 ;
 ; We want to transform camera, then perspective, then screen. This is:
 ; S . P . C
-; or, (multiplied by 256 for fixed-point)
+; or, (multiplied by 256 for fixed-point), something like:
 ; [ 5120   0     0    0   ]
 ; [   0  10240   0    0   ]
 ; [   0    0   -262 -7842 ]
 ; [   0    0   -256 -5120 ]
+; This matrix is calculated using the "viewmatrix.ml" program.
 
 ; (This is written transposed.)
 transformation:
@@ -2076,7 +2074,7 @@ loop:
 	.ctxend
 
 	.context blank_various_buffers
-	.var2 columns, colours, depths
+	.var2 columns, colours
 	.var number
 	
 blank_various_buffers:
@@ -2091,8 +2089,6 @@ buf1:
 	@const_word %colours, switch_colours_1
 done:
 	.)
-	@const_word %depths, midpoint_depth
-	
 	lda #8
 	sta %number
 	
@@ -2102,12 +2098,10 @@ loop2:
 loop:
 	sta (%columns),y
 	sta (%colours),y
-	sta (%depths),y
 	iny
 	bne loop
 	inc %columns + 1
 	inc %colours + 1
-	inc %depths + 1
 	dec %number
 	bne loop2
 	
@@ -2164,28 +2158,28 @@ loop:
 	clc
 	adc #128
 	sta %render_line.y_end
-	lda %midpoint_tmp
-	clc
-	adc xpoints+4,y
-	sta %midpoint_tmp
-	lda %midpoint_tmp + 1
-	adc xpoints+5,y
-	sta %midpoint_tmp + 1
+	;lda %midpoint_tmp
+	;clc
+	;adc xpoints+4,y
+	;sta %midpoint_tmp
+	;lda %midpoint_tmp + 1
+	;adc xpoints+5,y
+	;sta %midpoint_tmp + 1
 	
 	; ??? check values for sanity
-	lda %midpoint_tmp
-	clc
-	adc #<256
-	sta %midpoint_tmp
-	lda %midpoint_tmp + 1
-	adc #>256
-	sta %midpoint_tmp + 1
-	lsr
-	ror %midpoint_tmp
-	lsr
-	ror %midpoint_tmp
-	lda %midpoint_tmp
-	sta %render_line.midpoint
+	;lda %midpoint_tmp
+	;clc
+	;adc #<256
+	;sta %midpoint_tmp
+	;lda %midpoint_tmp + 1
+	;adc #>256
+	;sta %midpoint_tmp + 1
+	;lsr
+	;ror %midpoint_tmp
+	;lsr
+	;ror %midpoint_tmp
+	;lda %midpoint_tmp
+	;sta %render_line.midpoint
 	
 	;jsr pr_hex
 	;jsr pr_newl
@@ -2302,9 +2296,8 @@ pr_newl:
 	.var x_start, x_end
 	.var lhs_colour, rhs_colour
 	.var colour_byte
-	.var midpoint
 	.var2 xpos, xdelta
-	.var2 rows, column, colour, midpts
+	.var2 rows, column, colour
 	.var2 tmp
 
 render_line:
@@ -2449,16 +2442,7 @@ buf1:
 	sta %colour + 1
 done:
 	.)
-	
-	; only one lots of midpoints
-	lda #<midpoint_depth
-	clc
-	adc %tmp
-	sta %midpts
-	lda #>midpoint_depth
-	adc %tmp + 1
-	sta %midpts + 1
-	
+		
 loop:
 	ldy %y_start
 	lda (%rows), y
@@ -2476,9 +2460,6 @@ loop:
 	
 	lda %colour_byte
 	sta (%colour), y
-	
-	lda %midpoint
-	sta (%midpts), y
 	
 	lda %xpos
 	clc
@@ -2524,7 +2505,7 @@ overflow:
 	.ctxend
 
 	.context sort_rows
-	.var2 rows, column, colour, midpts
+	.var2 rows, column, colour
 	.var row, idx, min_idx, num
 	.var closest, write_idx, copy_from
 	.var merged_colour
@@ -2544,8 +2525,6 @@ buf1:
 	@const_word %colour, switch_colours_1
 done:
 	.)
-	
-	@const_word %midpts, midpoint_depth
 	
 	stz %row
 loop:
@@ -2613,18 +2592,6 @@ current_lower:
 	txa
 	ldy %idx
 	sta (%colour), y
-	
-	ldy %min_idx
-	lda (%midpts), y
-	tax
-	ldy %idx
-	lda (%midpts), y
-	; A = midpts[idx], X = midpts[min_idx]
-	ldy %min_idx
-	sta (%midpts), y
-	txa
-	ldy %idx
-	sta (%midpts), y
 no_swap:
 	.)
 	
@@ -2653,22 +2620,6 @@ different:
 	.)
 	; now min_idx (inclusive) to idx (exclusive) should have the same
 	; column positions.
-	lda #255
-	sta %copy_from
-	sta %closest
-	ldy %min_idx
-	.(
-loop:
-	lda (%midpts),y
-	cmp %closest
-	bcs not_this_one
-	sta %closest
-	sty %copy_from
-not_this_one:
-	iny
-	cpy %idx
-	bcc loop
-	.)
 	
 	lda %min_idx
 	sta %copy_from
@@ -2769,11 +2720,7 @@ done:
 	;cpy #255
 	;beq skip_copying
 	lda (%column),y
-	tax
-	lda (%midpts),y
 	ldy %write_idx
-	sta (%midpts),y
-	txa
 	sta (%column),y
 skip_copying:
 	ldy %write_idx
@@ -2803,9 +2750,6 @@ row_empty:
 
 	; move to next row of colours
 	@addw_small_const %colour, columns_per_row
-
-	; move to next row of midpoints
-	@addw_small_const %midpts, columns_per_row
 
 	inc %row
 	.(

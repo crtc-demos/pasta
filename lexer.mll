@@ -163,6 +163,13 @@ and token = parse
   | "-"			{ MINUS }
   | "*"			{ TIMES }
   | "/"			{ DIVIDE }
+  | "&"			{ AND }
+  | "|"			{ OR }
+  | "^"			{ EOR }
+  | "~"			{ NOT }
+  | "<<"		{ LSHIFT }
+  | ">>"		{ RSHIFT }
+  | ">>>"		{ ARSHIFT }
   | "<"			{ LANGLE }
   | ">"			{ RANGLE }
   | "("			{ LBRACKET }

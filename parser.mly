@@ -7,7 +7,8 @@ open M6502
 
 %token COMMA EOL EOF HASH COLON
 %token LBRACKET RBRACKET LSQUARE RSQUARE
-%token PLUS MINUS TIMES DIVIDE LANGLE RANGLE PERCENT DOT
+%token PLUS MINUS TIMES DIVIDE LANGLE RANGLE PERCENT DOT NOT
+%token OR EOR AND LSHIFT RSHIFT ARSHIFT
 %token X Y A
 %token MACRO MEND
 %token SCOPE SCEND CONTEXT CTXEND
@@ -18,6 +19,10 @@ open M6502
 %token <int32> NUM
 
 %nonassoc LANGLE RANGLE
+%left OR
+%left EOR
+%left AND
+%left LSHIFT RSHIFT ARSHIFT
 %left PLUS MINUS
 %left TIMES DIVIDE
 
@@ -189,6 +194,13 @@ num: n = NUM				{ Expr.Int n }
    | a = num MINUS b = num		{ Expr.Minus (a, b) }
    | a = num TIMES b = num		{ Expr.Times (a, b) }
    | a = num DIVIDE b = num		{ Expr.Divide (a, b) }
+   | a = num OR b = num			{ Expr.Or (a, b) }
+   | a = num EOR b = num		{ Expr.Eor (a, b) }
+   | a = num AND b = num		{ Expr.And (a, b) }
+   | a = num LSHIFT b = num		{ Expr.Lshift (a, b) }
+   | a = num RSHIFT b = num		{ Expr.Rshift (a, b) }
+   | a = num ARSHIFT b = num		{ Expr.Arshift (a, b) }
+   | NOT a = num			{ Expr.Not a }
    | MINUS a = num			{ Expr.Uminus a }
    | LANGLE a = num			{ Expr.LoByte a }
    | RANGLE a = num			{ Expr.HiByte a }

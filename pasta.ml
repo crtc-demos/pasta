@@ -102,9 +102,11 @@ let extract_origin prog =
     (0, [])
 
 let _ =
-  let infile = ref "" and outfile = ref "a.out" in
+  let infile = ref "" and outfile = ref "a.out"
+  and allocdump = ref false in
   let argspec =
-    ["-o", Arg.Set_string outfile, "Set output file"]
+    ["-o", Arg.Set_string outfile, "Set output file";
+     "-a", Arg.Set allocdump, "Write allocation info dump"]
   and usage = "Usage: pasta -o <output> <input>" in
   Arg.parse argspec (fun i -> infile := i) usage;
   if !infile = "" then begin
@@ -112,16 +114,19 @@ let _ =
     exit 1
   end;
   let inf = open_in !infile in
+  let alloc_filename = Log.alloc_filename !infile in
+  if !allocdump then
+    Log.open_alloc alloc_filename;
   let stdinbuf = Lexing.from_channel inf in
   let frags =
     try
       Parser.insn_seq Lexer.token stdinbuf
     with
       Parser.Error as exc ->
-        Printf.fprintf stderr "Parse error at line %d: " (!Lexer.line_num);
+        Printf.fprintf stderr "Parse error at line %d: " (!Line.line_num);
 	raise exc
     | Failure _ as exc ->
-        Printf.fprintf stderr "Error at line %d: " (!Lexer.line_num);
+        Printf.fprintf stderr "Error at line %d: " (!Line.line_num);
 	raise exc
     in
   let prog = collect_insns frags in
@@ -158,4 +163,5 @@ let _ =
   (* Iterating layout puts the program in the correct order (i.e. with the head
      of the insn list as the start of the program).  *)
   ignore (Encode.encode_prog origin [env] cooked_prog !outfile);
-  close_in inf
+  close_in inf;
+  Log.close_alloc ()

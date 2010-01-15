@@ -12,7 +12,7 @@ COBJ =
 # Source plus generated files.
 OCAMLSRC := m6502.ml parser.ml lexer.ml insn.ml pasta.ml expr.ml encode.ml \
 	    layout.ml env.ml context.ml var.ml graph.ml alloc.ml temps.ml \
-	    colour.ml
+	    colour.ml line.ml log.ml
 
 OCAMLOBJ := $(shell < .depend $(OCAMLDSORT) -byte $(OCAMLSRC))
 
@@ -57,7 +57,7 @@ cmmparse: $(CMMPOBJ)
 	$(OCAMLLEX) $<
 
 # Extra dependencies.
-parser.ml:	insn.cmo
+parser.ml:	insn.cmo line.cmo
 insn.cmo:	expr.cmo m6502.cmo context.cmo
 lexer.cmo:	parser.cmo
 expr.cmo:	env.cmo

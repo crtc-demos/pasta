@@ -3,7 +3,7 @@ open Insn
 (* It'd probably be better to filter out the zero-sized directives before we
    get to here.  This works OK for now though.  *)
 
-let insn_size env = function
+let rec insn_size env = function
     Label _ -> 0
   | DeclVars _ -> 0
   | Temps _ -> 0

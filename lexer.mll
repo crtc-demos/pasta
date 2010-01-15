@@ -1,9 +1,7 @@
 {
   open Parser
   open M6502
-  
-  let line_num = ref 1
-  
+    
   exception BadQuoteChar
   
   let dequote s =
@@ -185,6 +183,6 @@ and token = parse
   | '%' 		{ PERCENT }
   | "@" (label as mac)	{ EXPMACRO mac }
   | "\n"
-  | ";" [^'\n']* "\n"	{ incr line_num; EOL }
+  | ";" [^'\n']* "\n"	{ incr Line.line_num; EOL }
   | (" "|"\t")+		{ token lexbuf }
   | eof			{ EOF }

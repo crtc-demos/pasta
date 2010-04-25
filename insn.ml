@@ -19,12 +19,21 @@ type insn =
   | Macrodef of string * string list * insn list
   | Expmacro of string * const_expr list
   | DeclVars of int * string list
+  | SourceLoc of srcloc
 
 and ascii_part = AscString of string
                | AscChar of const_expr
 
 and temp_spec = OneTemp of const_expr
 	      | TempRange of const_expr * const_expr
+
+and srcloc = SourceLine of int
+           | SourceExpandedFromLine of int * int
+
+let string_of_srcloc = function
+    SourceLine line -> string_of_int line
+  | SourceExpandedFromLine (line, fromline) ->
+      Printf.sprintf "%d, expanded from line %d" line fromline
 
 (* A right-fold where scopes are invisible, but the environment stack gets
    updated as the tree is traversed.  *)
@@ -46,6 +55,7 @@ let rec fold_right_with_env fn outer_env insns acc =
 (* Similar, but folding left.  *)
 
 let fold_left_with_env fn outer_env acc insns =
+  let srcloc = ref (SourceLine 0) in
   let rec foldl env acc insns =
     match insns with
       [] -> acc
@@ -57,8 +67,11 @@ let fold_left_with_env fn outer_env acc insns =
 	let deeper_env = inner_env::env in
 	let inner_acc = foldl deeper_env acc insns_in_ctx in
 	foldl env inner_acc is
+    | (SourceLoc line as i)::is ->
+        srcloc := line;
+	foldl env (fn env !srcloc acc i) is
     | i::is ->
-	foldl env (fn env acc i) is in
+	foldl env (fn env !srcloc acc i) is in
   foldl outer_env acc insns
 
 let iter_with_context fn insns =
@@ -95,7 +108,7 @@ let map_with_context fn insns =
 let has_addrmode op am =
   Hashtbl.mem insns_hash (op, am)
 
-exception BadAddrmode
+exception BadAddrmode of string
 
 let addrmode_from_raw env first_pass vpc opcode am =
   let eval_addr n =
@@ -112,7 +125,7 @@ let addrmode_from_raw env first_pass vpc opcode am =
       if has_addrmode opcode Immediate then
 	Immediate, [| eval_addr n |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "immediate")
   | Raw_num n ->
       let addr = eval_addr n in
       if has_addrmode opcode Zeropage && addr < 0x100l then
@@ -125,7 +138,7 @@ let addrmode_from_raw env first_pass vpc opcode am =
 	else
 	  Synth_lbra, [| addr |]
       end else
-	raise BadAddrmode
+	raise (BadAddrmode "zeropage or absolute")
   | Raw_num_x n ->
       let addr = eval_addr n in
       if has_addrmode opcode Zeropage_X && addr < 0x100l then
@@ -133,7 +146,7 @@ let addrmode_from_raw env first_pass vpc opcode am =
       else if has_addrmode opcode Absolute_X then
         Absolute_X, [| addr |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "indexed X")
   | Raw_num_y n ->
       let addr = eval_addr n in
       if has_addrmode opcode Zeropage_Y && addr < 0x100l then
@@ -141,65 +154,100 @@ let addrmode_from_raw env first_pass vpc opcode am =
       else if has_addrmode opcode Absolute_Y then
         Absolute_Y, [| addr |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "indexed Y")
   | Raw_indirect n ->
       if has_addrmode opcode Indirect then
         Indirect, [| eval_addr n |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "indirect")
   | Raw_x_indirect n ->
       if has_addrmode opcode X_Indirect then
         X_Indirect, [| eval_addr n |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "X indirect")
   | Raw_indirect_y n ->
       if has_addrmode opcode Indirect_Y then
         Indirect_Y, [| eval_addr n |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "indirect Y")
   | Raw_accumulator ->
       if has_addrmode opcode Accumulator then
         Accumulator, [| |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "accumulator")
   | Raw_implied ->
       if has_addrmode opcode Implied then
         Implied, [| |]
       else if has_addrmode opcode Accumulator then
         Accumulator, [| |]
       else
-        raise BadAddrmode
+        raise (BadAddrmode "implied")
 
-(* Expand macros once in PROG.  Note macros are expanded in nested scopes at
+(* Expand macros once in PROG.  Note macros are expanded to nested scopes at
    their points of invocation.  *)
 
 let rec invoke_macros_once prog macros =
-  List.fold_right
-    (fun insn (expanded, insns) ->
+  let expandedfromline = ref 0 in
+  let expanded, out = List.fold_left
+    (fun (expanded, insns) insn ->
       match insn with
         Expmacro (name, actual_args) ->
 	  let (formal_args, body) = Hashtbl.find macros name in
-	  let expansion = List.fold_right
-	    (fun body_insn insns ->
-	      match body_insn with
-		Raw_insn (opc, raw_addrmode) ->
-	          let raw_addrmode' = M6502.map_raw_addrmode_expr
-		    (fun expr -> subst_macro_args expr formal_args actual_args)
-		    raw_addrmode in
-		  Raw_insn (opc, raw_addrmode') :: insns
-	      | _ -> body_insn :: insns)
-	    body
-	    [] in
-	  true, Scope (Env.new_env (), expansion) :: insns
+	  let lineno = ref 0 in
+	  begin try
+	    let expansion = List.fold_left
+	      (fun insns body_insn ->
+		match body_insn with
+		  Raw_insn (opc, raw_addrmode) ->
+	            let raw_addrmode' = M6502.map_raw_addrmode_expr
+		      (fun expr ->
+		        subst_macro_args expr formal_args actual_args)
+		      raw_addrmode in
+		    Raw_insn (opc, raw_addrmode') :: insns
+		| SourceLoc l ->
+		    begin match l with
+		      SourceLine line ->
+        	        lineno := line;
+		        SourceLoc (SourceExpandedFromLine (line,
+			           !expandedfromline))
+			  :: insns
+		    | SourceExpandedFromLine (line, _) ->
+		        SourceLoc (SourceExpandedFromLine (line,
+				   !expandedfromline))
+			  :: insns
+		    end
+		| _ -> body_insn :: insns)
+	      []
+	      body in
+	    true, Scope (Env.new_env (), List.rev expansion) :: insns
+	  with Expr.UnknownMacroArg arg ->
+	    raise (Line.AssemblyError ((Printf.sprintf
+	      "Unknown macro arg '%s'" arg), string_of_int !lineno))
+	  | Expr.TooManyParams ->
+	    raise (Line.AssemblyError ((Printf.sprintf
+	      "Too many parameters for macro '%s'" name),
+	      (Printf.sprintf "%d (defined at %d)" !expandedfromline !lineno)))
+	  | Expr.NotEnoughParams ->
+	    raise (Line.AssemblyError ((Printf.sprintf
+	      "Not enough parameters for macro '%s'" name),
+	      (Printf.sprintf "%d (defined at %d)" !expandedfromline !lineno)))
+	  end
       | Scope (nested_env, body) ->
           let expanded', body' = invoke_macros_once body macros in
 	  expanded', Scope (nested_env, body') :: insns
       | Context (nested_env, ctxname, body) ->
 	  let expanded', body' = invoke_macros_once body macros in
 	  expanded', Context (nested_env, ctxname, body') :: insns
+      | SourceLoc l ->
+          begin match l with
+	    SourceLine line -> expandedfromline := line;
+	  | SourceExpandedFromLine (line, _) -> expandedfromline := line
+	  end;
+	  expanded, insn :: insns
       | _ -> expanded, insn :: insns)
-    prog
     (false, [])
+    prog in
+  expanded, List.rev out
 
 (* Iteratively expand macros in PROG.  *)
 

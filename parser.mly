@@ -5,7 +5,7 @@ open M6502
 
 %}
 
-%token COMMA EOL EOF HASH COLON
+%token COMMA EOF HASH
 %token LBRACKET RBRACKET LSQUARE RSQUARE
 %token PLUS MINUS TIMES DIVIDE LANGLE RANGLE PERCENT DOT NOT
 %token OR EOR AND LSHIFT RSHIFT ARSHIFT
@@ -16,6 +16,7 @@ open M6502
 %token <M6502.opcode> INSN
 %token <string> LABEL EXPMACRO STRING
 %token <int> DATA VAR
+%token <Insn.srcloc> EOL
 %token <int32> NUM
 
 %nonassoc LANGLE RANGLE
@@ -33,12 +34,9 @@ open M6502
 %%
 
 insn_seq: EOF				{ [] }
-	| i = insn EOL is = insn_seq	{ i :: is }
+	| i = insn line = EOL is = insn_seq
+					{ SourceLoc line :: i :: is }
 	| EOL is = insn_seq		{ is }
-;
-
-maybe_eol: /* nothing */
-	 | EOL				{ }
 ;
 
 insn: i = alu_op
@@ -63,7 +61,10 @@ macro: MACRO l = LABEL args = list(arg) EOL m = macro_seq MEND
 					{ Macrodef (l, args, m) }
 ;
 
-macro_seq: ml = list(minsn)		{ ml }
+macro_seq: /* nothing */		{ [] }
+	 | insn = minsn line = EOL is = macro_seq
+					{ SourceLoc line :: insn :: is }
+	 | EOL is = macro_seq		{ is }
 ;
 
 (* a, x, y are too useful to be forbidden as arguments...  *)
@@ -73,9 +74,9 @@ arg: l = LABEL				{ l }
    | Y					{ "y" }
 ;
 
-minsn: i = alu_op EOL
-     | i = label_directive maybe_eol
-     | i = expand_macro EOL		{ i }
+minsn: i = alu_op
+     | i = label_directive
+     | i = expand_macro			{ i }
 ;
 
 scope: SCOPE EOL is = insns_in_scope SCEND
@@ -83,8 +84,8 @@ scope: SCOPE EOL is = insns_in_scope SCEND
 ;
 
 insns_in_scope: /* nothing */		{ [] }
-	      | i = insn EOL is = insns_in_scope
-	      				{ i :: is }
+	      | i = insn line = EOL is = insns_in_scope
+	      				{ SourceLoc line :: i :: is }
 	      | EOL is = insns_in_scope	{ is }
 ;
 
@@ -132,7 +133,7 @@ am_accumulator: A			{ Raw_accumulator }
 am_implied:				{ Raw_implied }
 ;
 
-label_directive: lab = LABEL COLON	{ Label lab }
+label_directive: lab = LABEL		{ Label lab }
 ;
 
 data_directive: sz = DATA n = separated_list(COMMA, num)
@@ -209,8 +210,13 @@ num: n = NUM				{ Expr.Int n }
    | LSQUARE n = num RSQUARE		{ n }
 ;
 
+(* Explicitly permit A, X and Y as variable refs, since they're useful variable
+   names.  *)
 %inline var_ref: PERCENT vl = separated_list(DOT, LABEL)
 					{ vl }
+	       | PERCENT A		{ ["a"] }
+	       | PERCENT X		{ ["x"] }
+	       | PERCENT Y		{ ["y"] }
 ;
 
 %%

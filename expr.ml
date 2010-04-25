@@ -37,14 +37,16 @@ let rec map_expr fn = function
   | And (a, b) -> fn (And (map_expr fn a, map_expr fn b))
 
 exception UnknownMacroArg of string
+exception TooManyParams
+exception NotEnoughParams
 
 let subst_macro_args expr formal_args actual_args =
   let f2a = Hashtbl.create 5 in
   let rec build_hash form act =
     match form, act with
       [], [] -> ()
-    | [], _ -> failwith "Too many actual parameters"
-    | _, [] -> failwith "Not enough actual parameters"
+    | [], _ -> raise TooManyParams
+    | _, [] -> raise NotEnoughParams
     | f::forms, a::acts -> Hashtbl.add f2a f a; build_hash forms acts in
   build_hash formal_args actual_args;
   map_expr

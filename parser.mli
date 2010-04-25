@@ -35,7 +35,7 @@ type token =
   | HASH
   | EXPMACRO of (string)
   | EOR
-  | EOL
+  | EOL of (Insn.srcloc)
   | EOF
   | DSB
   | DOT
@@ -44,7 +44,6 @@ type token =
   | CTXEND
   | CONTEXT
   | COMMA
-  | COLON
   | ASCII
   | ARSHIFT
   | AND

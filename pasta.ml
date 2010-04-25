@@ -58,7 +58,7 @@ let collect_vars prog =
 
 let collect_interf prog =
   Insn.fold_left_with_env
-    (fun _ intflist insn ->
+    (fun _ _ intflist insn ->
       match insn with
         Insn.Interf (a, b) -> (a, b) :: intflist
       | _ -> intflist)
@@ -129,39 +129,43 @@ let _ =
         Printf.fprintf stderr "Error at line %d: " (!Line.line_num);
 	raise exc
     in
-  let prog = collect_insns frags in
-  let macros = collect_macros frags in
-  let prog = Insn.invoke_macros prog macros in
-  let origin, prog = extract_origin prog in
-  collect_contexts frags;
-  collect_notemps frags;
-  Insn.find_dependencies frags;
-  Context.ctxs#transitive_closure;
-  collect_vars frags;
-  let igraph = Alloc.build_graph () in
-  let igraph = Alloc.add_explicit_interf igraph (collect_interf frags) in
-  let prots = collect_protections frags in
-  let igraph = Alloc.add_protection igraph prots in
-  Alloc.print_graph igraph;
-  let pool = new Temps.temps in
-  collect_temps frags pool;
-  let spilled = Colour.alloc igraph pool in
-  if spilled <> [] then begin
-    Printf.printf "Ran out of temps!\n";
-    List.iter
-      (fun (nctx, nvarname) ->
-	Printf.printf "No space for: %s.%s\n" nctx#get_name nvarname)
-      spilled;
-    exit 1
+  begin try
+    let prog = collect_insns frags in
+    let macros = collect_macros frags in
+    let prog = Insn.invoke_macros prog macros in
+    let origin, prog = extract_origin prog in
+    collect_contexts frags;
+    collect_notemps frags;
+    Insn.find_dependencies frags;
+    Context.ctxs#transitive_closure;
+    collect_vars frags;
+    let igraph = Alloc.build_graph () in
+    let igraph = Alloc.add_explicit_interf igraph (collect_interf frags) in
+    let prots = collect_protections frags in
+    let igraph = Alloc.add_protection igraph prots in
+    Alloc.print_graph igraph;
+    let pool = new Temps.temps in
+    collect_temps frags pool;
+    let spilled = Colour.alloc igraph pool in
+    if spilled <> [] then begin
+      Printf.printf "Ran out of temps!\n";
+      List.iter
+	(fun (nctx, nvarname) ->
+	  Printf.printf "No space for: %s.%s\n" nctx#get_name nvarname)
+	spilled;
+      exit 1
+    end;
+    Colour.dump_allocation ();
+    let prog = Insn.substitute_vars prog in
+    (* Now, prog is in "reverse" order, i.e. the head of the list contains the
+       last instruction (and the head of each nested scope contains the last
+       instruction of that scope.  *)
+    let cooked_prog, _, env  = Layout.iterate_layout origin prog in
+    (* Iterating layout puts the program in the correct order (i.e. with the head
+       of the insn list as the start of the program).  *)
+    ignore (Encode.encode_prog origin [env] cooked_prog !outfile);
+    close_in inf;
+  with Line.AssemblyError (err, line) ->
+    Printf.fprintf stderr "%s at line %s\n" err line
   end;
-  Colour.dump_allocation ();
-  let prog = Insn.substitute_vars prog in
-  (* Now, prog is in "reverse" order, i.e. the head of the list contains the
-     last instruction (and the head of each nested scope contains the last
-     instruction of that scope.  *)
-  let cooked_prog, _, env  = Layout.iterate_layout origin prog in
-  (* Iterating layout puts the program in the correct order (i.e. with the head
-     of the insn list as the start of the program).  *)
-  ignore (Encode.encode_prog origin [env] cooked_prog !outfile);
-  close_in inf;
   Log.close_alloc ()

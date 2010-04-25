@@ -156,7 +156,6 @@ and token = parse
   | "."			{ DOT }
   | ","			{ COMMA }
   | "#"			{ HASH }
-  | ":"			{ COLON }
   | "+"			{ PLUS }
   | "-"			{ MINUS }
   | "*"			{ TIMES }
@@ -183,6 +182,8 @@ and token = parse
   | '%' 		{ PERCENT }
   | "@" (label as mac)	{ EXPMACRO mac }
   | "\n"
-  | ";" [^'\n']* "\n"	{ incr Line.line_num; EOL }
+  | ";" [^'\n']* "\n"	{ incr Line.line_num;
+			  EOL (Insn.SourceLine (pred !Line.line_num)) }
+  | ":"			{ EOL (Insn.SourceLine !Line.line_num) }
   | (" "|"\t")+		{ token lexbuf }
   | eof			{ EOF }

@@ -3,6 +3,11 @@ PASTA
 
 A smart assembler for 65(C)02 processors.
 
+Version
+-------
+
+Kind of alpha.
+
 Why another 6502 assembler?
 ---------------------------
 
@@ -554,3 +559,18 @@ my_program:
 Only use ".protect" when necessary (as above), else you may find yourself running out of zero-page locations too quickly. The "protection" acts for the whole of the containing context.
 
 You can write recursive functions using contexts, but you are responsible for saving and restoring variables yourself (e.g. by pushing them onto a stack).
+
+Links
+-----
+
+xa65: http://www.floodgap.com/retrotech/xa/
+The Ophis Assembler: http://hkn.eecs.berkeley.edu/~mcmartin/ophis/
+
+Contact
+-------
+
+Please send bug reports, general comments or whatever to:
+
+jules "at" panic.cs-bristol.org.uk
+
+Thanks!

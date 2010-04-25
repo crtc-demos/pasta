@@ -58,7 +58,7 @@ cmmparse: $(CMMPOBJ)
 
 # Extra dependencies.
 parser.ml:	insn.cmo line.cmo
-insn.cmo:	expr.cmo m6502.cmo context.cmo
+insn.cmo:	expr.cmo m6502.cmo context.cmo line.cmo
 lexer.cmo:	parser.cmo
 expr.cmo:	env.cmo
 context.cmo:	var.cmo

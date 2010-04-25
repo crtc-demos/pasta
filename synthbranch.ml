@@ -12,10 +12,10 @@ let invert_branch = function
   | Bvs -> Bvc
   | _ -> failwith "Not a branch"
 
-let expand_synth_branch prog env ~verbose =
+let expand_synth_branch prog start_vpc env ~verbose =
   let lineno = ref (SourceLine 0) in
-  Insn.fold_right_with_env
-    (fun env insn acc ->
+  let expanded, _ = Insn.fold_right_with_env
+    (fun env insn (acc, vpc) ->
       match insn with
         Insn ((Bcc | Bcs | Beq | Bmi | Bne | Bpl | Bvc | Bvs) as opcode,
 	      Synth_lbra, args) ->
@@ -25,18 +25,19 @@ let expand_synth_branch prog env ~verbose =
 	      (Insn.string_of_srcloc !lineno)
 	  end;
 	  Insn (Jmp, Absolute, args)
-	  :: Insn (inv_opcode, Relative, [| 5l |])
-	  :: acc
+	  :: Insn (inv_opcode, Relative, [| Int32.add (Int32.of_int vpc) 5l |])
+	  :: acc, vpc + Layout.insn_size env insn
       | Insn (Bra as opcode, Synth_lbra, args) ->
           if verbose then begin
 	    Printf.fprintf stderr "Note: using jmp instead of bra at %s\n"
 	      (Insn.string_of_srcloc !lineno)
 	  end;
-          Insn (Jmp, Absolute, args) :: acc
+          Insn (Jmp, Absolute, args) :: acc, vpc + Layout.insn_size env insn
       | SourceLoc line ->
           lineno := line;
-	  insn :: acc
-      | _ -> insn :: acc)
+	  insn :: acc, vpc + Layout.insn_size env insn
+      | _ -> insn :: acc, vpc + Layout.insn_size env insn)
     env
     prog
-    []
+    ([], start_vpc) in
+  expanded

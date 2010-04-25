@@ -2234,11 +2234,12 @@ invisible:
 	tax
 	
 	cmp #48
-	.(
-	beq skip
-	jmp loop
-skip:
-	.)
+;	.(
+;	beq skip
+;	jmp loop
+;skip:
+;	.)
+	bne loop
 	rts
 	.ctxend
 
@@ -2531,11 +2532,12 @@ loop:
 	ldy %row
 	lda (%rows), y
 	cmp #2
-	.(
-	bcs skip
-	jmp row_empty
-skip:
-	.)
+;	.(
+;	bcs skip
+;	jmp row_empty
+;skip:
+;	.)
+	bcc row_empty
 	sta %num
 	
 	stz %idx
@@ -2732,12 +2734,11 @@ skip_copying:
 	lda %min_idx
 	cmp %num
 
-;	.(
-;	bcs skip
-;	jmp cleanup
-;skip:
-;	.)
-	bcc cleanup
+	.(
+	bcs skip
+	jmp cleanup
+skip:
+	.)
 	
 	ldy %row
 	lda %write_idx

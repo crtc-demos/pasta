@@ -161,9 +161,11 @@ let _ =
        last instruction (and the head of each nested scope contains the last
        instruction of that scope.  *)
     let cooked_prog, _, env  = Layout.iterate_layout origin prog in
-    (* Iterating layout puts the program in the correct order (i.e. with the head
-       of the insn list as the start of the program).  *)
-    ignore (Encode.encode_prog origin [env] cooked_prog !outfile);
+    (* Iterating layout puts the program in the correct order (i.e. with the
+       head of the insn list as the start of the program).  *)
+    let cooked_prog' = Synthbranch.expand_synth_branch cooked_prog [env]
+			 ~verbose:true in
+    ignore (Encode.encode_prog origin [env] cooked_prog' !outfile);
     close_in inf;
   with Line.AssemblyError (err, line) ->
     Printf.fprintf stderr "%s at line %s\n" err line

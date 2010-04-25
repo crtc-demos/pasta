@@ -2731,11 +2731,13 @@ skip_copying:
 
 	lda %min_idx
 	cmp %num
-	.(
-	bcs skip
-	jmp cleanup
-skip:
-	.)
+
+;	.(
+;	bcs skip
+;	jmp cleanup
+;skip:
+;	.)
+	bcc cleanup
 	
 	ldy %row
 	lda %write_idx

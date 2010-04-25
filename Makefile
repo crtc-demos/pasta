@@ -12,7 +12,7 @@ COBJ =
 # Source plus generated files.
 OCAMLSRC := m6502.ml parser.ml lexer.ml insn.ml pasta.ml expr.ml encode.ml \
 	    layout.ml env.ml context.ml var.ml graph.ml alloc.ml temps.ml \
-	    colour.ml line.ml log.ml
+	    colour.ml line.ml log.ml synthbranch.ml
 
 OCAMLOBJ := $(shell < .depend $(OCAMLDSORT) -byte $(OCAMLSRC))
 

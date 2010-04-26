@@ -85,7 +85,7 @@ let insns =
    Bpl, Synth_lbra,  0x10, 5, Branch_Plus 2;
    Bvc, Synth_lbra,  0x50, 5, Branch_Plus 2;
    Bvs, Synth_lbra,  0x70, 5, Branch_Plus 2;
-   Bra, Synth_lbra,  0x80, 5, Branch_Plus 3;  (* 65C02 *)
+   Bra, Synth_lbra,  0x80, 3, Fixed 3;      (* 65C02 *)
 
    Bit, Zeropage,    0x24, 2, Fixed 3;
    Bit, Absolute,    0x2c, 3, Fixed 4;

@@ -260,21 +260,22 @@ let rec invoke_macros prog macros =
 
 exception UnhandledJump
 
-let context_from_expr caller expr =
+let context_from_expr caller expr lineno =
   match expr with
     Expr.ExLabel lab when Context.ctxs#mem [lab] -> [lab]
   | Expr.ExLabel lab when (Context.ctxs#get caller)#defines_label lab ->
       begin match !Log.alloc_stream with
         None -> ()
       | Some fh ->
-	  Printf.fprintf fh "Context %s has internal calls\n"
+	  Printf.fprintf fh "Context '%s' has internal calls\n"
             (Context.to_string caller);
       end;
       raise Not_found
   | x ->
-      Printf.printf "Context %s may not call %s\n" (Context.to_string caller)
-        (Expr.to_string x);
-      raise UnhandledJump
+      raise (Line.AssemblyError ((Printf.sprintf
+        "Context '%s' may not call '%s' (which is not in a context)"
+	(Context.to_string caller)
+        (Expr.to_string x)), string_of_srcloc lineno))
 
 (* Find the dependencies of contexts upon other contexts.  *)
 
@@ -290,12 +291,12 @@ let find_dependencies prog =
 	  | Jmp, Raw_num dest ->
 	      begin try
 	        let ctx = Context.ctxs#get ctxid in
-	        let dctxid = context_from_expr ctxid dest in
+	        let dctxid = context_from_expr ctxid dest !lineno in
 		if not (ctx#call_marked dctxid) then begin
 		  begin match !Log.alloc_stream with
 		    None -> ()
 		  | Some fh ->
-		    Printf.fprintf fh "Context %s calls %s\n"
+		    Printf.fprintf fh "Context '%s' calls '%s'\n"
 		      (Context.to_string ctxid) (Context.to_string dctxid)
 		  end;
 		  ctx#calls_context dctxid
@@ -305,7 +306,7 @@ let find_dependencies prog =
 	      end
 	  | Jmp, x ->
 	      raise (Line.AssemblyError ((Printf.sprintf
-	        "Context %s has unsupported jump" (Context.to_string ctxid)),
+	        "Context '%s' has unsupported jump" (Context.to_string ctxid)),
 		(string_of_srcloc !lineno)))
 	  | _ -> ()
 	  end

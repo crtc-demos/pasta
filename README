@@ -96,9 +96,9 @@ multiply_xa_by_5:
 	sta %tmp2
 	stx %tmp2 + 1
 
-	; multiply tmp2 by 2.
-	lda %tmp2 + 1
-	asl %tmp2
+	; multiply tmp1 by 2.
+	lda %tmp1 + 1
+	asl %tmp1
 	rol a
 	tax
 
@@ -430,7 +430,7 @@ Use, e.g.:
 	lda %c + 2
 	sta %d + 3
 
-To refer to high bytes of variables. Don't offset beyond the size of the variable, else unexpected things will happen if you do (this is not diagnosed as an error at present).
+To refer to high bytes of variables. Don't offset beyond the size of the variable, else unexpected things will happen (this is not diagnosed as an error at present).
 
 There are some limitations to the use of contexts. Inside a context, you may only call or jump to an external label (defined outside the current context) which was exported from *another* context: i.e., contexts must be connected together.
 
@@ -528,7 +528,7 @@ Pictorially, we have:
     |  add  |          |  sub  |
     +-------+          +-------+
 
-Now, variables from "my_program" interfere with variables from "add" (i.e. they will be made to not overlap), and similarly variables from "my_program" interfere with those from "sub", but the variables of "add" and "sub" (as siblings) do not automatically interfere.
+Now, variables from "my_program" interfere with variables from "add" (i.e. they will be made to not overlap), and similarly variables from "my_program" interfere with those from "sub", but the variables of "add" and "sub" (as siblings) do not automatically interfere, so may be assigned to the same locations.
 
 Of course, this is undesirable in this case, and unfortunately Pasta doesn't do any real dataflow analysis (allocation is done at the granularity of whole contexts), so can't tell by itself when this happens. So, if you want to use variables from sibling contexts with overlapping ranges like this, you must explicitly tell Pasta about it, to make sure the affected variables are allocated to distinct locations. In the above program you should write:
 

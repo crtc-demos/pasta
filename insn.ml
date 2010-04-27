@@ -156,13 +156,17 @@ let addrmode_from_raw env first_pass vpc opcode am =
       else
         raise (BadAddrmode "indexed Y")
   | Raw_indirect n ->
-      if has_addrmode opcode Indirect then
+      if has_addrmode opcode ZP_Indirect then
+        ZP_Indirect, [| eval_addr n |]
+      else if has_addrmode opcode Indirect then
         Indirect, [| eval_addr n |]
       else
         raise (BadAddrmode "indirect")
   | Raw_x_indirect n ->
       if has_addrmode opcode X_Indirect then
         X_Indirect, [| eval_addr n |]
+      else if has_addrmode opcode X_Indirjmp then
+        X_Indirjmp, [| eval_addr n |]
       else
         raise (BadAddrmode "X indirect")
   | Raw_indirect_y n ->

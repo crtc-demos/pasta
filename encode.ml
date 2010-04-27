@@ -17,9 +17,9 @@ let rec output_data fh size data =
 let output_addrmode fh env vpc addrmode args =
   match addrmode with
     Accumulator | Implied -> ()
-  | Absolute | Absolute_X | Absolute_Y ->
+  | Absolute | Absolute_X | Absolute_Y | Indirect | X_Indirjmp ->
       output_data fh 2 (single_arg args)
-  | Immediate | Indirect | X_Indirect | Indirect_Y | Zeropage | Zeropage_X
+  | Immediate | ZP_Indirect | X_Indirect | Indirect_Y | Zeropage | Zeropage_X
   | Zeropage_Y ->
       output_data fh 1 (single_arg args)
   | Relative ->

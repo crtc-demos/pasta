@@ -27,7 +27,7 @@ let expand_synth_branch prog start_vpc env ~verbose =
 	  Insn (Jmp, Absolute, args)
 	  :: Insn (inv_opcode, Relative, [| Int32.add (Int32.of_int vpc) 5l |])
 	  :: acc, vpc + Layout.insn_size env insn
-      | Insn (Bra as opcode, Synth_lbra, args) ->
+      | Insn (Bra, Synth_lbra, args) ->
           if verbose then begin
 	    Printf.fprintf stderr "Note: using jmp instead of bra at %s\n"
 	      (Insn.string_of_srcloc !lineno)

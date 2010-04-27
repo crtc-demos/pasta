@@ -14,7 +14,7 @@ multiply_xa_by_3:
 	clc
 	adc %tmp
 	sta %tmp
-	tax
+	txa
 	adc %tmp + 1
 	tax
 	lda %tmp
@@ -32,9 +32,9 @@ multiply_xa_by_5:
 	sta %tmp2
 	stx %tmp2 + 1
 
-	; multiply tmp2 by 2.
-	lda %tmp2 + 1
-	asl %tmp2
+	; multiply tmp1 by 2.
+	lda %tmp1 + 1
+	asl %tmp1
 	rol a
 	tax
 

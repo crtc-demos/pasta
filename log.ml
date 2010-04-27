@@ -11,8 +11,3 @@ let close_alloc () =
   match !alloc_stream with
     None -> ()
   | Some fh -> close_out fh
-
-let printf stream fmt =
-  match !stream with
-    None -> Obj.magic
-  | Some fh -> Printf.fprintf fh fmt

@@ -61,7 +61,7 @@ parser.ml:	insn.cmo line.cmo
 insn.cmo:	expr.cmo m6502.cmo context.cmo line.cmo
 lexer.cmo:	parser.cmo
 expr.cmo:	env.cmo
-context.cmo:	var.cmo
+context.cmo:	var.cmo log.cmo
 
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),cleaner)

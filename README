@@ -93,7 +93,7 @@ multiply_xa_by_3:
 	clc
 	adc %tmp
 	sta %tmp
-	tax
+	txa
 	adc %tmp + 1
 	tax
 	lda %tmp

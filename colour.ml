@@ -44,16 +44,16 @@ let alloc intf regpool =
   in
     remove_nodes intf []
 
-let dump_allocation () =
+let dump_allocation fh =
   Context.ctxs#iter
     (fun ctxname ctx ->
       ctx#fold_vars
         (fun name var () ->
           try
-	    Printf.printf "Var %s.%s (size %d) assigned to %x\n"
+	    Printf.fprintf fh "Var %s.%s (size %d) assigned to %x\n"
 	      (Context.to_string ctxname) name var#get_size var#get_loc
 	  with Not_found ->
-	    Printf.printf "Variable %s.%s\n" (Context.to_string ctxname)
+	    Printf.fprintf fh "Variable %s.%s\n" (Context.to_string ctxname)
 	      name)
 	())
     

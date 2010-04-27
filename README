@@ -11,9 +11,18 @@ Kind of alpha.
 Why another 6502 assembler?
 ---------------------------
 
-This is Pasta (which isn't really an acronym, but if you want a backronym it could be "Puppeh's ASsembler with a regisTer Allocator"...). It's a cross-assembler for the MOS 6502 (also including 65C02 instructions), which contains experimental support for automatic management of certain resources (namely, zero-page memory locations), provided that you are prepared to use a slightly restricted programming style.
+This is Pasta (which isn't really an acronym, but if you want a backronym it
+could be "Puppeh's ASsembler with a regisTer Allocator"...). It's a
+cross-assembler for the MOS 6502 (also including 65C02 instructions), which
+contains experimental support for automatic management of certain resources
+(namely, zero-page memory locations), provided that you are prepared to use a
+slightly restricted programming style.
 
-The problem we're trying to solve is as follows. Say you write a routine in assembler, (say) to multiply a 16-bit number in the A and X registers (with A as the least-significant byte) by three. Hoping for small and fast code, you pick some zero-page locations to use for temporary storage, say $70 and $71. Now your routine might look like this (untested!):
+The problem we're trying to solve is as follows. Say you write a routine in
+assembler, (say) to multiply a 16-bit number in the A and X registers (with A as
+the least-significant byte) by three. Hoping for small and fast code, you pick
+some zero-page locations to use for temporary storage, say $70 and $71. Now your
+routine might look like this (untested!):
 
 multiply_xa_by_3:
 	; original number in [x:a].
@@ -25,14 +34,17 @@ multiply_xa_by_3:
 	clc
 	adc $70
 	sta $70
-	tax
+	txa
 	adc $71
 	tax
 	lda $70
 	; now [x:a] should be the original number * 3.
 	rts
 
-Now, you want to write another routine which calls this function. Remembering that you've used $70 and $71 already in this function, you must either save those locations around call sites (big and slow!), or choose new zero-page locations. So we might write something like this:
+Now, you want to write another routine which calls this function. Remembering
+that you've used $70 and $71 already in this function, you must either save
+those locations around call sites (big and slow!), or choose new zero-page
+locations. So we might write something like this:
 
 multiply_xa_by_5:
 	sta $72
@@ -58,9 +70,12 @@ multiply_xa_by_5:
 	lda $72
 	rts
 
-Now when we call multiply_xa_by_5, we must remember that we've used all the zero-page locations from $70 up to $75. Any changes to either function must be carefully checked in case variables are accidentally overwritten.
+Now when we call multiply_xa_by_5, we must remember that we've used all the
+zero-page locations from $70 up to $75. Any changes to either function must be
+carefully checked in case variables are accidentally overwritten.
 
-Handling this manually, whilst possible, can be quite error-prone. In Pasta, this can be handled for you. You can write this:
+Handling this manually, whilst possible, can be quite error-prone. In Pasta,
+this can be handled for you. You can write this:
 
 	; Define automatically-allocated chunk of zero-page locations.
 	.temps $70..$7f
@@ -102,7 +117,7 @@ multiply_xa_by_5:
 	rol a
 	tax
 
-	; add saved input * 3 value.
+	; add saved the input * 3 value in tmp2.
 	lda %tmp1
 	clc
 	adc %tmp2
@@ -114,43 +129,61 @@ multiply_xa_by_5:
 	rts
 	.ctxend
 
-This generates code which is identically as fast as before, but we don't have to worry about which zero-page locations we've used any more. Pasta notices that multiply_xa_by_5 calls multiply_xa_by_3, so the "variables" (i.e. zero-page locations) which the two functions use will not overlap.
+This generates code which is identically as fast as before, but we don't have to
+worry about which zero-page locations we've used any more. Pasta notices that
+multiply_xa_by_5 calls multiply_xa_by_3, so the "variables" (i.e. zero-page
+locations) which the two functions use will not overlap.
 
-Pasta supports a useful (though certainly not complete) set of familiar features from other assemblers (macros, aliases, ...). At the moment there's only support for single input files, and you can only output a raw binary.
+Pasta supports a useful (though certainly not complete) set of familiar features
+from other assemblers (macros, aliases, ...). At the moment there's only support
+for single input files, and you can only output a raw binary.
 
 Compiling
 ---------
 
-Pasta is supplied as source code. Compile by typing 'make'. Prerequisites for building include:
+Pasta is supplied as source code. Compile by typing 'make'. Prerequisites for
+building include:
 
 * OCaml (I'm using 3.11.2, other versions may work too).
 * ocamldsort
 * Menhir
 * GNU Make
 
-I've only tried building on Debian GNU/Linux. Other platforms will probably work.
+I've only tried building on Debian GNU/Linux. Other platforms will probably
+work too.
 
 Usage
 -----
 
 Assemble files (.s) with:
 
-  pasta <input file> -o <output file>
+	pasta [options] <input file> -o <output file>
 
 The output file format is raw binary.
+
+Options are:
+
+	-a : Write information about variable allocation to <basename>.alloc
+	-q : Quiet (don't emit informational notes)
+
+If "-o <output file>" is omitted, the binary name defaults to "a.out".
 
 Syntax
 ------
 
-The syntax supported by Pasta is quite typical for a 6502 assembler, and is inspired mostly by xa65 and the Ophis assembler (though is not 100% compatible with either). Write most opcodes in the usual style, one per-line, or separated with a colon (which counts as a linefeed for parsing purposes):
+The syntax supported by Pasta is quite typical for a 6502 assembler, and is
+inspired mostly by xa65 and the Ophis assembler (though is not 100% compatible
+with either). Write most opcodes in the usual style, one per-line, or separated
+with a colon (which counts as a linefeed for parsing purposes):
 
 	lda #65:sta $70
 
-Instructions which use accumulator addressing (e.g. rol) can either specify 'a' or not, e.g.:
+Instructions which use accumulator addressing (e.g. rol) can either specify 'a'
+or not, e.g.:
 
 	rol a
 
-and just plain:
+or just plain:
 
 	rol
 
@@ -159,7 +192,8 @@ are both valid (and produce the same result).
 Comments
 --------
 
-Comments are introduced with a ';' character, and last until the end of the line. Comments may contain colons (they will not end the comment).
+Comments are introduced with a ';' character, and last until the end of the
+line. Comments may contain colons (i.e. colons will not end the comment).
 
 Directives
 ----------
@@ -171,7 +205,9 @@ Assembler directives are introduced with a dot character, e.g.:
 Expressions
 -----------
 
-Pasta contains full support for evaluating expressions. Intermediate results are calculated with 32 bits of precision. Operators supported are mostly C-like:
+Pasta contains full support for evaluating assembly-time expressions.
+Intermediate results are calculated with 32 bits of precision. Operators
+supported are mostly C-like:
 
 	+ (add)
 	- (subtract)
@@ -189,7 +225,7 @@ Pasta contains full support for evaluating expressions. Intermediate results are
 	< (unary, low byte)
 	> (unary, high byte)
 
-These have precedence from as follows:
+These have precedences as follows:
 
 	(lowest)
 	< >
@@ -217,7 +253,7 @@ In binary:
 
 	lda #0b01000001
 
-As an ASCII character:
+Or as ASCII characters:
 
 	lda #'A'
 
@@ -276,7 +312,7 @@ A block of memory:
 
         .dsb 32, 0
 
-(A block of 32 zero-bytes).
+This will fill a block with 32 zero-bytes.
 
 ASCII strings:
 
@@ -286,7 +322,8 @@ Strings are *not* null-terminated. To terminate your strings, use e.g.:
 
 	.asc "hello world!", 0
 
-Escaping works properly in string immediates, using the \ character. E.g. you can write:
+Escaping works properly in string immediates, using the \ character. E.g. you
+can write:
 
 	.asc "\"hello world\"", 0
 
@@ -299,15 +336,22 @@ Characters you can escape like this are:
 	r (carriage return)
 	t (tab)
 
+If you need other non-printable characters, you can write e.g.:
+
+	.asc "filename", 13
+
 Branches
 --------
 
-Conditional branches are automatically lengthened (to a branch with the opposite condition over a jmp instruction) when their target is out-of-scope. Pasta emits a note when it does this.
+Conditional branches are automatically lengthened (to a branch with the opposite
+condition over a jmp instruction) when their target is out-of-scope. Pasta emits
+a note when it does this.
 
 Scopes
 ------
 
-Labels defined in your program are visible globally, unless they are enclosed within a "scope" as follows:
+Labels defined in your program are visible globally, unless they are enclosed
+within a "scope" as follows:
 
 	.scope
 	ldx #5
@@ -325,11 +369,15 @@ loop:
 	bne loop
 	.)
 
-Any label defined within a scope is only visible inside that scope (and in more deeply-nested scopes). Forward references work as expected.
+Any label defined within a scope is only visible inside that scope (and in more
+deeply-nested scopes). Forward references work as expected. There's currently no
+way of "exporting" labels from within scopes.
 
-Scopes allow you to reuse common label names (e.g. "loop"), without any problems caused by multiple definitions.
+Scopes allow you to reuse common label names (e.g. "loop"), without any problems
+caused by multiple definitions.
 
-If you're not using contexts, you might find it good practice to put each of your functions into its own scope, like so:
+If you're not using contexts, you might find it good practice to wrap each of
+your functions with its own scope, like so:
 
 func1:
 	.(
@@ -337,7 +385,9 @@ func1:
 	rts
 	.)
 
-Note that the entry point (func1) is outside the scope, so it will be visible globally. Any labels defined inside the function will be invisible to the rest of the program.
+Note that the entry point (func1) is outside the scope, so it will be visible
+globally. Any labels defined inside the function will be invisible to the rest
+of the program.
 
 Aliases
 -------
@@ -346,7 +396,8 @@ You can define numerical aliases like so:
 
 	.alias foo $4000
 
-You can then use 'foo' in expressions, where its value will be substituted as if you'd written $4000 directly. 
+You can then use 'foo' in expressions, where its value will be substituted as if
+you'd written $4000 directly. 
 
 This can be useful e.g. for OS entry points:
 
@@ -363,7 +414,8 @@ You can use an arbitrary expression as the RHS of an alias definition, e.g.
 Macros
 ------
 
-You can define macros with arguments as follows (note use of '%' to signify macro arguments):
+You can define macros with arguments as follows (note use of '%' to signify
+macro arguments):
 
 	.macro add res a b
 	lda %a
@@ -379,31 +431,43 @@ Macros can then be invoked at arbitrary points in your program as follows:
 
 	@add $70, $72, $74
 
-Arguments are evaluated as numerical expressions, and substituted into the macro expansion. (These are not C-style macros: you can't use them for arbitrary text substitution.)
+Arguments are evaluated as numerical expressions, and substituted into the macro
+expansion. (These are not C-style macros: you can't use them for arbitrary text
+substitution.)
 
-Internally, macros are expanded to scopes: this means that labels defined inside a macro definition are local to each invocation of that macro.
+Internally, macros are expanded to scopes: this means that labels defined inside
+a macro definition are local to each invocation of that macro.
 
-Macro definitions cannot be nested, but macro invocations can be. E.g. it's legal to expand a macro inside a macro definition, e.g.:
+Macro definitions cannot be nested within other definitions (which wouldn't make
+much sense), but macro definitions can contain macro invocations. E.g. it's
+legal to expand a macro inside a macro definition like this:
 
 	.macro add_b_twice res a b
 	@add %res, %a, %b
 	@add %res, %res, %b
 	.mend
 
+There are currently no facilities for assembly-time conditionals or looping
+constructs.
+
 Contexts
 --------
 
-Contexts are the mechanism used to handle automatic zero-page management. They are somewhat similar to scopes, but with extended functionality.
+Contexts are the mechanism used to handle automatic zero-page management. They
+are somewhat similar to scopes, but with extended functionality.
 
-Several directives are concerned with contexts. Firstly you must specify which zero-page locations are available for automatic management, using:
+Several directives are concerned with contexts. Firstly you must specify which
+zero-page locations are available for automatic management, using:
 
 	.temps $70..$74
 
-You can specify discontinuous regions, like so:
+This would specify that locations $70 to $74 (inclusive) are available for
+automatic allocation of variables. You can specify discontinuous regions, like
+so:
 
 	.temps $70..$74, $76, $78..$7a
 
-A scope definition looks like:
+A context definition looks like:
 
 	.context foo
 	.var a, b, c
@@ -414,27 +478,40 @@ foo:
 	rts
 	.ctxend
 
-Taking this apart a bit, the single word 'foo' after the context directive defines an entry point for the context, and should correspond to a label defined inside the context.
+Taking this apart a bit, the single word 'foo' after the context directive
+defines an entry point for the context, and should correspond to a label defined
+inside the context.
 
-Variables may be 1, 2, 3 or 4 bytes in length. These are defined by directives, e.g.:
+Variables may be 1, 2, 3 or 4 bytes in length. These are defined by directives,
+e.g.:
 
 	.var a    (a 1-byte variable 'a')
 	.var2 b   (a 2-byte variable 'b')
 	.var3 c   (a 3-byte variable 'c')
 	.var4 d   (a 4-byte variable 'd')
 
-Then %a, %b, %c and %d can be used in the context body, and will be substituted by automatically-assigned zero-page locations.
+Then %a, %b, %c and %d can be used in the context body, and will be substituted
+by automatically-assigned zero-page locations.
 
 Use, e.g.:
 
 	lda %c + 2
 	sta %d + 3
 
-To refer to high bytes of variables. Don't offset beyond the size of the variable, else unexpected things will happen (this is not diagnosed as an error at present).
+To refer to high bytes of variables. Don't offset beyond the size of the
+variable, else unexpected things will happen (this is not diagnosed as an error
+at present).
 
-There are some limitations to the use of contexts. Inside a context, you may only call or jump to an external label (defined outside the current context) which was exported from *another* context: i.e., contexts must be connected together.
+There are some limitations to the use of contexts. Inside a context, you may
+only call or jump to an external label (one defined outside the current context)
+if it was exported from a context itself: generally, control flow cannot
+escape from a context into a non-context part of your program (although you can
+safely jump *into* a context from anywhere).
 
-If you want to call or jump to a label which does not have a context around it, you must explicitly declare that it uses none of the automatically-managed temporary space using the ".notemps" directive:
+There is one exception to this rule. If you want to call or jump to a label
+which does not have a context around it, you can do so if you explicitly declare
+that it uses none of the automatically-managed temporary space using the
+".notemps" directive:
 
 	.notemps oswrch
 	
@@ -445,16 +522,27 @@ print_a:
 	rts
 	.ctxend
 
-If the "oswrch" function *does* use some of the temp variables though, unexpected things will happen, so take care.
+If the "oswrch" function *does* use some of the temp variables though,
+unexpected things will happen, so take care.
 
-You cannot use conditional branches to escape from a context, nor can you use indirect jumps within a context (Pasta must be able to statically determine the call graph of the program). If you need to do more complex control flow, you must arrange your program so that those bits are outside a context.
+You cannot use conditional branches to escape from a context (though this is not
+diagnosed as an error at present), nor can you use indirect jumps within a
+context (code which does this will not assemble): Pasta must be able to
+statically determine the call graph of your program. If you need to do more
+complex control flow, you must arrange your program so that those bits are
+outside a context.
 
-You cannot define a macro inside a context, but of course macros can be invoked inside contexts.
+You cannot define macros inside contexts, but of course macros can be invoked
+inside contexts.
 
 Advanced use of contexts
 ------------------------
 
-It is permitted to access the variables defined inside contexts from elsewhere in the program, if some care is taken. This enables a programming style where arguments can be passed and returned in fast zero-page locations to/from functions wrapped in contexts. As an example, a function can be defined as follows:
+It is permitted to access the variables defined inside contexts from elsewhere
+in the program, if some care is taken. This enables a programming style where
+arguments can be passed and returned in fast zero-page locations to/from
+functions wrapped in contexts. As an example, a function can be defined as
+follows:
 
 	.context add
 	.var res, a, b
@@ -481,9 +569,14 @@ my_program:
 	rts
 	.ctxend
 
-Because 'add' is called from 'my_program', Pasta's zero-page allocator will ensure that "add_result", "res", "a" and "b" are allocated to different locations.
+Because 'add' is called from 'my_program', Pasta's zero-page allocator will
+ensure that "add_result", "res", "a" and "b" are each allocated to different
+locations.
 
-Now, the complicated bit. If you call multiple contexts from a given context, there is no guarantee that each callee's variables will all be distinct. (If this wasn't so, we would run out of locations to allocate rather quickly). Say we have the "add" context from above, and another similar one for subtraction:
+Now, the complicated bit. If you call multiple contexts from a given context,
+there is no guarantee that each callee's variables will all be distinct. (If
+this wasn't so, we would run out of locations to allocate rather quickly). Say
+we have the "add" context from above, and another similar one for subtraction:
 
 	.context sub
 	.var res, a, b
@@ -516,7 +609,10 @@ my_program:
 	rts
 	.ctxend
 
-Now: whereas %add.a, %add.b and %add.res will be distinct from %add_result, %add.a, %add.b or %add.res may be the same as any of %sub.a, %sub.b or %sub.res. So, when we try to read %add.res after writing to %sub.a, we might have overwritten the value we wanted to use.
+Now: whereas %add.a, %add.b and %add.res will be distinct from %add_result,
+%add.a, %add.b or %add.res may be the same as any of %sub.a, %sub.b or %sub.res.
+So, when we try to read %add.res after writing to %sub.a, we might have
+overwritten the value we wanted to use.
 
 Pictorially, we have:
 
@@ -528,9 +624,18 @@ Pictorially, we have:
     |  add  |          |  sub  |
     +-------+          +-------+
 
-Now, variables from "my_program" interfere with variables from "add" (i.e. they will be made to not overlap), and similarly variables from "my_program" interfere with those from "sub", but the variables of "add" and "sub" (as siblings) do not automatically interfere, so may be assigned to the same locations.
+Now, variables from "my_program" interfere with variables from "add" (i.e. they
+will be made to not overlap), and similarly variables from "my_program"
+interfere with those from "sub", but the variables of "add" and "sub" (as
+siblings) do not automatically interfere, so may be assigned to the same
+locations by the allocator.
 
-Of course, this is undesirable in this case, and unfortunately Pasta doesn't do any real dataflow analysis (allocation is done at the granularity of whole contexts), so can't tell by itself when this happens. So, if you want to use variables from sibling contexts with overlapping ranges like this, you must explicitly tell Pasta about it, to make sure the affected variables are allocated to distinct locations. In the above program you should write:
+Of course, this is undesirable in this case, and unfortunately Pasta doesn't do
+any real dataflow analysis (allocation is done at the granularity of whole
+contexts), so can't tell by itself when this happens. So, if you want to use
+variables from sibling contexts with overlapping ranges like this, you must
+explicitly tell Pasta about it, to make sure the affected variables are
+allocated to distinct locations. In the above program you should write:
 
 	.context my_program
 	.var sub_result
@@ -556,9 +661,42 @@ my_program:
 	rts
 	.ctxend
 
-Only use ".protect" when necessary (as above), else you may find yourself running out of zero-page locations too quickly. The "protection" acts for the whole of the containing context.
+Only use ".protect" when necessary (as above), else you may find yourself
+running out of zero-page locations too quickly. The "protection" acts for the
+whole of the containing context.
 
-You can write recursive functions using contexts, but you are responsible for saving and restoring variables yourself (e.g. by pushing them onto a stack).
+You can write recursive functions using contexts, but you are responsible for
+saving and restoring variables yourself (e.g. by pushing them onto a stack).
+
+Running out of allocated space
+------------------------------
+
+So: how well does this work? As it turns out, apparently quite well in practice.
+What we have, essentially, is the same thing as a call stack, but allocated
+statically. As long as the maximum call depth of your program isn't too large,
+and each of your functions doesn't use too many variables, and you make sure to
+provide a fairly large number of zero-page bytes to the allocator (depending on
+the complexity of your program of course), you'll probably be fine.
+
+If you do happen to run out of space, Pasta will give you a message and exit:
+
+Ran out of temps!
+No space for: hello.i
+
+In this case, your best options are to:
+
+* Reduce the number of variables you are using (perhaps you can use a
+non-zeropage location or the hardware stack for something instead?).
+
+* Increase the number of temps in the allocation pool.
+
+* Rearrange your program so the call stack is shallower.
+
+It's possible that the temp pool could get fragmented in such a way that there
+should be enough space for a particular multi-byte variable, but it is spread
+around multiple locations in the pool rather than in one continuous chunk, since
+variables are allocated "greedily". This hasn't proven to be a big issue in
+practice for me at least, so far.
 
 Links
 -----

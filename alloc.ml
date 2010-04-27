@@ -76,13 +76,13 @@ let add_protection graph prots =
 let print_node (nctx, nvar) =
   Printf.sprintf "%s.%s" (nctx#get_name) nvar
 
-let print_graph igraph =
+let print_graph fh igraph =
   G.fold_node
     (fun src targs_i () ->
       let connected = G.connected_i targs_i in
       List.iter
-        (fun targ -> Printf.printf "%s interferes with %s\n" (print_node src)
-				   (print_node targ))
+        (fun targ -> Printf.fprintf fh "%s interferes with %s\n"
+				    (print_node src) (print_node targ))
 	connected)
     igraph
     ()

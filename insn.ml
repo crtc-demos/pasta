@@ -264,8 +264,12 @@ let context_from_expr caller expr =
   match expr with
     Expr.ExLabel lab when Context.ctxs#mem [lab] -> [lab]
   | Expr.ExLabel lab when (Context.ctxs#get caller)#defines_label lab ->
-      Printf.printf "Context %s has internal calls\n"
-        (Context.to_string caller);
+      begin match !Log.alloc_stream with
+        None -> ()
+      | Some fh ->
+	  Printf.fprintf fh "Context %s has internal calls\n"
+            (Context.to_string caller);
+      end;
       raise Not_found
   | x ->
       Printf.printf "Context %s may not call %s\n" (Context.to_string caller)
@@ -287,8 +291,12 @@ let find_dependencies prog =
 	        let ctx = Context.ctxs#get ctxid in
 	        let dctxid = context_from_expr ctxid dest in
 		if not (ctx#call_marked dctxid) then begin
-		  Printf.printf "Context %s calls %s\n"
-		    (Context.to_string ctxid) (Context.to_string dctxid);
+		  begin match !Log.alloc_stream with
+		    None -> ()
+		  | Some fh ->
+		    Printf.fprintf fh "Context %s calls %s\n"
+		      (Context.to_string ctxid) (Context.to_string dctxid)
+		  end;
 		  ctx#calls_context dctxid
 		end
 	      with Not_found ->

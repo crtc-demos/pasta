@@ -74,24 +74,38 @@ class contexts = object (self)
 		(fun ddctxid () ->
 		  if not (ctx#call_marked ddctxid) then begin
 		    ctx#calls_context ddctxid;
-		    Printf.printf "Context %s reaches %s\n"
-		      (to_string ctxid) (to_string ddctxid);
+		    begin match !Log.alloc_stream with
+		      None -> ()
+		    | Some fh ->
+			Printf.fprintf fh "Context %s reaches %s\n"
+			  (to_string ctxid) (to_string ddctxid);
+		    end;
 		    did_something := true
 		  end)
 		();
 	      if false && not (dctx#call_marked ctxid) then begin
 	        dctx#calls_context ctxid;
-		Printf.printf "Context %s reaches %s (by returning)\n"
-		  (to_string dctxid) (to_string ctxid);
+		begin match !Log.alloc_stream with
+		  None -> ()
+		| Some fh ->
+		    Printf.fprintf fh "Context %s reaches %s (by returning)\n"
+		      (to_string dctxid) (to_string ctxid);
+		end;
 		did_something := true
 	      end)
 	    ())
 	contexts;
       if !did_something then
         iterate_closure () in
-    print_endline "Transitive closure...";
+    begin match !Log.alloc_stream with
+      None -> ()
+    | Some fh -> Printf.fprintf fh "Transitive closure...\n";
+    end;
     iterate_closure ();
-    print_endline "done."
+    begin match !Log.alloc_stream with
+      None -> ()
+    | Some fh -> Printf.fprintf fh "done.\n";
+    end
 end
 
 let ctxs = new contexts

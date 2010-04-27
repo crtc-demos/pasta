@@ -103,10 +103,12 @@ let extract_origin prog =
 
 let _ =
   let infile = ref "" and outfile = ref "a.out"
-  and allocdump = ref false in
+  and allocdump = ref false
+  and noisy = ref true in
   let argspec =
     ["-o", Arg.Set_string outfile, "Set output file";
-     "-a", Arg.Set allocdump, "Write allocation info dump"]
+     "-a", Arg.Set allocdump, "Write allocation info dump";
+     "-q", Arg.Clear noisy, "Be quiet about synthetic instructions"]
   and usage = "Usage: pasta -o <output> <input>" in
   Arg.parse argspec (fun i -> infile := i) usage;
   if !infile = "" then begin
@@ -143,7 +145,10 @@ let _ =
     let igraph = Alloc.add_explicit_interf igraph (collect_interf frags) in
     let prots = collect_protections frags in
     let igraph = Alloc.add_protection igraph prots in
-    Alloc.print_graph igraph;
+    begin match !Log.alloc_stream with
+      None -> ()
+    | Some fh -> Alloc.print_graph fh igraph
+    end;
     let pool = new Temps.temps in
     collect_temps frags pool;
     let spilled = Colour.alloc igraph pool in
@@ -155,7 +160,10 @@ let _ =
 	spilled;
       exit 1
     end;
-    Colour.dump_allocation ();
+    begin match !Log.alloc_stream with
+      None -> ()
+    | Some fh -> Colour.dump_allocation fh
+    end;
     let prog = Insn.substitute_vars prog in
     (* Now, prog is in "reverse" order, i.e. the head of the list contains the
        last instruction (and the head of each nested scope contains the last
@@ -164,7 +172,7 @@ let _ =
     (* Iterating layout puts the program in the correct order (i.e. with the
        head of the insn list as the start of the program).  *)
     let cooked_prog' = Synthbranch.expand_synth_branch cooked_prog origin [env]
-			 ~verbose:true in
+			 ~verbose:!noisy in
     ignore (Encode.encode_prog origin [env] cooked_prog' !outfile);
     close_in inf;
   with Line.AssemblyError (err, line) ->

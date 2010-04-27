@@ -153,12 +153,12 @@ let _ =
     collect_temps frags pool;
     let spilled = Colour.alloc igraph pool in
     if spilled <> [] then begin
-      Printf.printf "Ran out of temps!\n";
+      Printf.fprintf stderr "Ran out of temps!\n";
       List.iter
 	(fun (nctx, nvarname) ->
-	  Printf.printf "No space for: %s.%s\n" nctx#get_name nvarname)
+	  Printf.fprintf stderr "No space for: %s.%s\n" nctx#get_name nvarname)
 	spilled;
-      exit 1
+      raise (Line.NonLineError "Allocation failure")
     end;
     begin match !Log.alloc_stream with
       None -> ()
@@ -177,5 +177,7 @@ let _ =
     close_in inf;
   with Line.AssemblyError (err, line) ->
     Printf.fprintf stderr "%s at line %s\n" err line
+  | Line.NonLineError err ->
+    Printf.fprintf stderr "%s\n" err
   end;
   Log.close_alloc ()

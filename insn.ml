@@ -279,6 +279,7 @@ let context_from_expr caller expr =
 (* Find the dependencies of contexts upon other contexts.  *)
 
 let find_dependencies prog =
+  let lineno = ref (SourceLine 0) in
   iter_with_context
     (fun ctxid i ->
       match ctxid, i with
@@ -303,11 +304,13 @@ let find_dependencies prog =
 	        ()
 	      end
 	  | Jmp, x ->
-	      Printf.printf "Context %s has unsupported jump\n"
-	        (Context.to_string ctxid);
-	      raise UnhandledJump
+	      raise (Line.AssemblyError ((Printf.sprintf
+	        "Context %s has unsupported jump" (Context.to_string ctxid)),
+		(string_of_srcloc !lineno)))
 	  | _ -> ()
 	  end
+      | _, SourceLoc line ->
+	  lineno := line
       | _ -> ())
     prog
 

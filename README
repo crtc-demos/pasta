@@ -221,7 +221,7 @@ supported are mostly C-like:
 	<< (left-shift)
 	>> (logical right-shift)
 	>>> (arithmetic right-shift)
-	[ ] (brackets, for grouping -- not NOT normal () brackets!)
+	[ ] (brackets, for grouping -- note NOT normal () brackets!)
 	< (unary, low byte)
 	> (unary, high byte)
 
@@ -530,7 +530,7 @@ diagnosed as an error at present), nor can you use indirect jumps within a
 context (code which does this will not assemble): Pasta must be able to
 statically determine the call graph of your program. If you need to do more
 complex control flow, you must arrange your program so that those bits are
-outside a context.
+not within a context.
 
 You cannot define macros inside contexts, but of course macros can be invoked
 inside contexts.

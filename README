@@ -11,12 +11,11 @@ Kind of alpha.
 Why another 6502 assembler?
 ---------------------------
 
-This is Pasta (which isn't really an acronym, but if you want a backronym it
-could be "Puppeh's ASsembler with a regisTer Allocator"...). It's a
-cross-assembler for the MOS 6502 (also including 65C02 instructions), which
-contains experimental support for automatic management of certain resources
-(namely, zero-page memory locations), provided that you are prepared to use a
-slightly restricted programming style.
+Pasta is a cross-assembler for the MOS 6502 (also including 65C02
+instructions), which contains experimental support for automatic
+management of certain resources (namely, zero-page memory locations),
+provided that you are prepared to use a slightly restricted programming
+style.
 
 The problem we're trying to solve is as follows. Say you write a routine in
 assembler, (say) to multiply a 16-bit number in the A and X registers (with A as

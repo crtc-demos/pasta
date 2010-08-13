@@ -152,6 +152,7 @@ and token = parse
   | ".protect"		{ PROTECT }
   | ".context"		{ CONTEXT }
   | ".ctxend"		{ CTXEND }
+  | ".include"		{ INCLUDE }
   | ".."		{ UPTO }
   | "."			{ DOT }
   | ","			{ COMMA }
@@ -183,7 +184,9 @@ and token = parse
   | "@" (label as mac)	{ EXPMACRO mac }
   | "\n"
   | ";" [^'\n']* "\n"	{ incr Line.line_num;
-			  EOL (Insn.SourceLine (pred !Line.line_num)) }
-  | ":"			{ EOL (Insn.SourceLine !Line.line_num) }
+			  EOL (Insn.SourceLine (!Line.current_file,
+						pred !Line.line_num)) }
+  | ":"			{ EOL (Insn.SourceLine (!Line.current_file,
+						!Line.line_num)) }
   | (" "|"\t")+		{ token lexbuf }
   | eof			{ EOF }

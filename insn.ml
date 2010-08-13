@@ -20,6 +20,7 @@ type insn =
   | Expmacro of string * const_expr list
   | DeclVars of int * string list
   | SourceLoc of srcloc
+  | IncludeFile of filename
 
 and ascii_part = AscString of string
                | AscChar of const_expr
@@ -27,13 +28,16 @@ and ascii_part = AscString of string
 and temp_spec = OneTemp of const_expr
 	      | TempRange of const_expr * const_expr
 
-and srcloc = SourceLine of int
-           | SourceExpandedFromLine of int * int
+and srcloc = SourceLine of filename * int
+           | SourceExpandedFromLine of filename * int * filename * int
+
+and filename = string
 
 let string_of_srcloc = function
-    SourceLine line -> string_of_int line
-  | SourceExpandedFromLine (line, fromline) ->
-      Printf.sprintf "%d, expanded from line %d" line fromline
+    SourceLine (filename, line) -> Printf.sprintf "%s:%d" filename line
+  | SourceExpandedFromLine (filename, line, fromfile, fromline) ->
+      Printf.sprintf "%s:%d, expanded from %s:%d" filename line
+        fromfile fromline
 
 (* A right-fold where scopes are invisible, but the environment stack gets
    updated as the tree is traversed.  *)
@@ -55,7 +59,7 @@ let rec fold_right_with_env fn outer_env insns acc =
 (* Similar, but folding left.  *)
 
 let fold_left_with_env fn outer_env acc insns =
-  let srcloc = ref (SourceLine 0) in
+  let srcloc = ref (SourceLine ("<unknown>", 0)) in
   let rec foldl env acc insns =
     match insns with
       [] -> acc
@@ -191,13 +195,19 @@ let addrmode_from_raw env first_pass vpc opcode am =
    their points of invocation.  *)
 
 let rec invoke_macros_once prog macros =
-  let expandedfromline = ref 0 in
+  let expandedfromline = ref 0
+  and expandedfromfile = ref "<unknown>" in
   let expanded, out = List.fold_left
     (fun (expanded, insns) insn ->
       match insn with
         Expmacro (name, actual_args) ->
-	  let (formal_args, body) = Hashtbl.find macros name in
-	  let lineno = ref 0 in
+	  let (formal_args, body) = try
+	    Hashtbl.find macros name
+	  with Not_found ->
+	    raise (Line.AssemblyError (
+	      Printf.sprintf "Undefined macro '%s'" name,
+	      Printf.sprintf "%s:%d" !expandedfromfile !expandedfromline))
+	  in let infile = ref "<unknown>" and lineno = ref 0 in
 	  begin try
 	    let expansion = List.fold_left
 	      (fun insns body_insn ->
@@ -210,14 +220,15 @@ let rec invoke_macros_once prog macros =
 		    Raw_insn (opc, raw_addrmode') :: insns
 		| SourceLoc l ->
 		    begin match l with
-		      SourceLine line ->
+		      SourceLine (filename, line) ->
+		        infile := filename;
         	        lineno := line;
-		        SourceLoc (SourceExpandedFromLine (line,
-			           !expandedfromline))
+		        SourceLoc (SourceExpandedFromLine (filename, line,
+			           !expandedfromfile, !expandedfromline))
 			  :: insns
-		    | SourceExpandedFromLine (line, _) ->
-		        SourceLoc (SourceExpandedFromLine (line,
-				   !expandedfromline))
+		    | SourceExpandedFromLine (filename, line, _, _) ->
+		        SourceLoc (SourceExpandedFromLine (filename, line,
+				   !expandedfromfile, !expandedfromline))
 			  :: insns
 		    end
 		| _ -> body_insn :: insns)
@@ -225,16 +236,19 @@ let rec invoke_macros_once prog macros =
 	      body in
 	    true, Scope (Env.new_env (), List.rev expansion) :: insns
 	  with Expr.UnknownMacroArg arg ->
-	    raise (Line.AssemblyError ((Printf.sprintf
-	      "Unknown macro arg '%s'" arg), string_of_int !lineno))
+	    raise (Line.AssemblyError (
+	      Printf.sprintf "Unknown macro arg '%s'" arg,
+	      Printf.sprintf "%s:%d" !infile !lineno))
 	  | Expr.TooManyParams ->
-	    raise (Line.AssemblyError ((Printf.sprintf
-	      "Too many parameters for macro '%s'" name),
-	      (Printf.sprintf "%d (defined at %d)" !expandedfromline !lineno)))
+	    raise (Line.AssemblyError (
+	      Printf.sprintf "Too many parameters for macro '%s'" name,
+	      Printf.sprintf "%s:%d (defined at %s:%d)" !expandedfromfile
+	        !expandedfromline !infile !lineno))
 	  | Expr.NotEnoughParams ->
-	    raise (Line.AssemblyError ((Printf.sprintf
-	      "Not enough parameters for macro '%s'" name),
-	      (Printf.sprintf "%d (defined at %d)" !expandedfromline !lineno)))
+	    raise (Line.AssemblyError (
+	      Printf.sprintf "Not enough parameters for macro '%s'" name,
+	      Printf.sprintf "%s:%d (defined at %s:%d)" !expandedfromfile
+	        !expandedfromline !infile !lineno))
 	  end
       | Scope (nested_env, body) ->
           let expanded', body' = invoke_macros_once body macros in
@@ -244,8 +258,12 @@ let rec invoke_macros_once prog macros =
 	  expanded', Context (nested_env, ctxname, body') :: insns
       | SourceLoc l ->
           begin match l with
-	    SourceLine line -> expandedfromline := line;
-	  | SourceExpandedFromLine (line, _) -> expandedfromline := line
+	    SourceLine (file, line) ->
+	      expandedfromfile := file;
+	      expandedfromline := line
+	  | SourceExpandedFromLine (file, line, _, _) ->
+	      expandedfromfile := file;
+	      expandedfromline := line
 	  end;
 	  expanded, insn :: insns
       | _ -> expanded, insn :: insns)
@@ -284,7 +302,7 @@ let context_from_expr caller expr lineno =
 (* Find the dependencies of contexts upon other contexts.  *)
 
 let find_dependencies prog =
-  let lineno = ref (SourceLine 0) in
+  let lineno = ref (SourceLine ("<unknown>", 0)) in
   iter_with_context
     (fun ctxid i ->
       match ctxid, i with

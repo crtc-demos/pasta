@@ -12,7 +12,7 @@ open M6502
 %token X Y A
 %token MACRO MEND
 %token SCOPE SCEND CONTEXT CTXEND
-%token ORIGIN ASCII ALIAS DSB TEMPS NOTEMPS INTERF PROTECT UPTO
+%token ORIGIN ASCII ALIAS DSB TEMPS NOTEMPS INTERF PROTECT UPTO INCLUDE
 %token <M6502.opcode> INSN
 %token <string> LABEL EXPMACRO STRING
 %token <int> DATA VAR
@@ -51,6 +51,7 @@ insn: i = alu_op
     | i = notemps_directive
     | i = interf_directive
     | i = protect_directive
+    | i = include_directive
     | i = expand_macro
     | i = macro
     | i = scope
@@ -181,6 +182,9 @@ interf_directive: INTERF a = var_ref COMMA b = var_ref
 
 protect_directive: PROTECT vl = separated_list(COMMA, var_ref)
 					{ Protect vl }
+;
+
+include_directive: INCLUDE f = STRING	{ IncludeFile f }
 ;
 
 expand_macro: m = EXPMACRO al = separated_list(COMMA, param)

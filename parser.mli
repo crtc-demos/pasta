@@ -32,6 +32,7 @@ type token =
   | LABEL of (string)
   | INTERF
   | INSN of (M6502.opcode)
+  | INCLUDE
   | HASH
   | EXPMACRO of (string)
   | EOR

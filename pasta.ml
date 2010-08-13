@@ -101,6 +101,35 @@ let extract_origin prog =
     prog
     (0, [])
 
+let parse_file input_name =
+  let inf = open_in input_name in
+  let stdinbuf = Lexing.from_channel inf in
+  let frags = try
+    Parser.insn_seq Lexer.token stdinbuf
+  with
+    Parser.Error as exc ->
+      Printf.fprintf stderr "Parse error at line %d: " (!Line.line_num);
+      raise exc
+  | Failure _ as exc ->
+      Printf.fprintf stderr "Error at line %d: " (!Line.line_num);
+      raise exc in
+  close_in inf;
+  frags
+
+let rec resolve_includes prog =
+  List.fold_right
+    (fun insn out_insns ->
+      match insn with
+        Insn.IncludeFile f ->
+	  Line.push_include f;
+	  let parsed = parse_file f in
+	  let p_resolved = resolve_includes parsed in
+	  Line.pop_include ();
+	  p_resolved @ out_insns
+      | _ -> insn :: out_insns)
+    prog
+    []
+
 let _ =
   let infile = ref "" and outfile = ref "a.out"
   and allocdump = ref false
@@ -115,23 +144,13 @@ let _ =
     Arg.usage argspec usage;
     exit 1
   end;
-  let inf = open_in !infile in
   let alloc_filename = Log.alloc_filename !infile in
   if !allocdump then
     Log.open_alloc alloc_filename;
-  let stdinbuf = Lexing.from_channel inf in
-  let frags =
-    try
-      Parser.insn_seq Lexer.token stdinbuf
-    with
-      Parser.Error as exc ->
-        Printf.fprintf stderr "Parse error at line %d: " (!Line.line_num);
-	raise exc
-    | Failure _ as exc ->
-        Printf.fprintf stderr "Error at line %d: " (!Line.line_num);
-	raise exc
-    in
+  Line.current_file := !infile;
+  let frags_toplevel = parse_file !infile in
   begin try
+    let frags = resolve_includes frags_toplevel in
     let prog = collect_insns frags in
     let macros = collect_macros frags in
     let prog = Insn.invoke_macros prog macros in
@@ -173,8 +192,7 @@ let _ =
        head of the insn list as the start of the program).  *)
     let cooked_prog' = Synthbranch.expand_synth_branch cooked_prog origin [env]
 			 ~verbose:!noisy in
-    ignore (Encode.encode_prog origin [env] cooked_prog' !outfile);
-    close_in inf;
+    ignore (Encode.encode_prog origin [env] cooked_prog' !outfile)
   with Line.AssemblyError (err, line) ->
     Printf.fprintf stderr "%s at line %s\n" err line
   | Line.NonLineError err ->

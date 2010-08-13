@@ -58,7 +58,7 @@ let layout env first_pass vpc_start insns =
     [env]
     ([], vpc_start)
     insns in
-  let lineno = ref (SourceLine 0) in
+  let lineno = ref (SourceLine ("<unknown>", 0)) in
   (* Stick context entry points into top-level environment (hack!)  *)
   Insn.iter_with_context
     (fun ctx insn ->

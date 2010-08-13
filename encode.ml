@@ -78,7 +78,8 @@ let rec emit_insns fh start_vpc env insns =
       | Origin _ -> failwith "Can't output origin"
       | NoTemps _ -> failwith "Can't output notemps directive"
       | Temps _ -> failwith "Can't output temps directive"
-      | Context _ -> failwith "Can't output context")
+      | Context _ -> failwith "Can't output context"
+      | IncludeFile _ -> failwith "Can't output include file")
     insns
     start_vpc
 

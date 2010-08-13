@@ -388,6 +388,19 @@ Note that the entry point (func1) is outside the scope, so it will be visible
 globally. Any labels defined inside the function will be invisible to the rest
 of the program.
 
+Include files
+-------------
+
+You can include other source files in your top-level assembly file using
+the .include directive:
+
+	.include "mydefs.s"
+
+The result is as if the "mydefs.s" file was inserted directly into your
+source file. The include file must be well-formed in its own right:
+you cannot, for instance, open a macro definition in an include file
+and close it in the top-level file, or vice versa.
+
 Aliases
 -------
 

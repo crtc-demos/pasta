@@ -218,6 +218,12 @@ let rec invoke_macros_once prog macros =
 		        subst_macro_args expr formal_args actual_args)
 		      raw_addrmode in
 		    Raw_insn (opc, raw_addrmode') :: insns
+		| Expmacro (name, args) ->
+		    let args' = List.map
+		      (fun arg ->
+		        subst_macro_args arg formal_args actual_args)
+		      args in
+		    Expmacro (name, args') :: insns
 		| SourceLoc l ->
 		    begin match l with
 		      SourceLine (filename, line) ->

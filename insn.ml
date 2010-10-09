@@ -258,10 +258,10 @@ let rec invoke_macros_once prog macros =
 	  end
       | Scope (nested_env, body) ->
           let expanded', body' = invoke_macros_once body macros in
-	  expanded', Scope (nested_env, body') :: insns
+	  expanded || expanded', Scope (nested_env, body') :: insns
       | Context (nested_env, ctxname, body) ->
 	  let expanded', body' = invoke_macros_once body macros in
-	  expanded', Context (nested_env, ctxname, body') :: insns
+	  expanded || expanded', Context (nested_env, ctxname, body') :: insns
       | SourceLoc l ->
           begin match l with
 	    SourceLine (file, line) ->

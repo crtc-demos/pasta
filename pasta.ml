@@ -107,11 +107,18 @@ let parse_file input_name =
   let frags = try
     Parser.insn_seq Lexer.token stdinbuf
   with
+    (* Not sure what circumstances this might still be thrown in.
+       Maybe none.  *)
     Parser.Error as exc ->
-      Printf.fprintf stderr "Parse error at line %d: " (!Line.line_num);
+      Printf.fprintf stderr "Parse error at %s:%d: " input_name
+		     (!Line.line_num);
+      raise exc
+  | Line.ParseError as exc ->
+      Printf.fprintf stderr "Parse error at %s:%d\n" input_name
+		     (!Line.line_num);
       raise exc
   | Failure _ as exc ->
-      Printf.fprintf stderr "Error at line %d: " (!Line.line_num);
+      Printf.fprintf stderr "Error at %s:%d: " input_name (!Line.line_num);
       raise exc in
   close_in inf;
   frags
@@ -144,11 +151,15 @@ let _ =
     Arg.usage argspec usage;
     exit 1
   end;
+  let return_code = ref 0 in
+  Line.current_file := !infile;
+  let frags_toplevel = try
+    parse_file !infile
+  with Line.ParseError ->
+    exit 1 in
   let alloc_filename = Log.alloc_filename !infile in
   if !allocdump then
     Log.open_alloc alloc_filename;
-  Line.current_file := !infile;
-  let frags_toplevel = parse_file !infile in
   begin try
     let frags = resolve_includes frags_toplevel in
     let prog = collect_insns frags in
@@ -195,9 +206,13 @@ let _ =
     ignore (Encode.encode_prog origin [env] cooked_prog' !outfile)
   with Line.AssemblyError (err, line) ->
     Printf.fprintf stderr "%s at line %s\n" err line;
-    exit 1
+    return_code := 1
   | Line.NonLineError err ->
     Printf.fprintf stderr "%s\n" err;
-    exit 1
+    return_code := 1
+  | Line.ParseError ->
+    return_code := 1
   end;
-  Log.close_alloc ()
+  Log.close_alloc ();
+  if !return_code <> 0 then
+    exit !return_code

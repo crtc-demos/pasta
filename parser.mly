@@ -36,6 +36,7 @@ open M6502
 insn_seq: EOF				{ [] }
 	| i = insn line = EOL is = insn_seq
 					{ SourceLoc line :: i :: is }
+	| error				{ raise Line.ParseError }
 	| EOL is = insn_seq		{ is }
 ;
 
@@ -65,6 +66,7 @@ macro: MACRO l = LABEL args = list(arg) EOL m = macro_seq MEND
 macro_seq: /* nothing */		{ [] }
 	 | insn = minsn line = EOL is = macro_seq
 					{ SourceLoc line :: insn :: is }
+	 | error			{ raise Line.ParseError }
 	 | EOL is = macro_seq		{ is }
 ;
 
@@ -87,6 +89,7 @@ scope: SCOPE EOL is = insns_in_scope SCEND
 insns_in_scope: /* nothing */		{ [] }
 	      | i = insn line = EOL is = insns_in_scope
 	      				{ SourceLoc line :: i :: is }
+	      | error			{ raise Line.ParseError }
 	      | EOL is = insns_in_scope	{ is }
 ;
 

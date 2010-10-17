@@ -22,3 +22,4 @@ let pop_include () =
 
 exception AssemblyError of string * string
 exception NonLineError of string
+exception ParseError

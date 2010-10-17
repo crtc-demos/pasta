@@ -6,7 +6,7 @@ A smart assembler for 65(C)02 processors.
 Version
 -------
 
-The current version is 0.07.
+The current version is 0.08.
 
 Why another 6502 assembler?
 ---------------------------

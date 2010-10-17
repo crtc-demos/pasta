@@ -194,8 +194,10 @@ let _ =
 			 ~verbose:!noisy in
     ignore (Encode.encode_prog origin [env] cooked_prog' !outfile)
   with Line.AssemblyError (err, line) ->
-    Printf.fprintf stderr "%s at line %s\n" err line
+    Printf.fprintf stderr "%s at line %s\n" err line;
+    exit 1
   | Line.NonLineError err ->
-    Printf.fprintf stderr "%s\n" err
+    Printf.fprintf stderr "%s\n" err;
+    exit 1
   end;
   Log.close_alloc ()

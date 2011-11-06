@@ -205,7 +205,7 @@ let _ =
 			 ~verbose:!noisy in
     ignore (Encode.encode_prog origin [env] cooked_prog' !outfile)
   with Line.AssemblyError (err, line) ->
-    Printf.fprintf stderr "%s at line %s\n" err line;
+    Printf.fprintf stderr "%s at %s\n" err line;
     return_code := 1
   | Line.NonLineError err ->
     Printf.fprintf stderr "%s\n" err;

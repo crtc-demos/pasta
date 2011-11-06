@@ -33,6 +33,8 @@ and srcloc = SourceLine of filename * int
 
 and filename = string
 
+let unknown_sourceline = SourceLine ("<unknown>", 0)
+
 let string_of_srcloc = function
     SourceLine (filename, line) -> Printf.sprintf "%s:%d" filename line
   | SourceExpandedFromLine (filename, line, fromfile, fromline) ->
@@ -308,7 +310,7 @@ let context_from_expr caller expr lineno =
 (* Find the dependencies of contexts upon other contexts.  *)
 
 let find_dependencies prog =
-  let lineno = ref (SourceLine ("<unknown>", 0)) in
+  let lineno = ref unknown_sourceline in
   iter_with_context
     (fun ctxid i ->
       match ctxid, i with

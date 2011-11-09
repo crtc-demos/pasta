@@ -13,6 +13,7 @@ type token =
   | RSQUARE
   | RSHIFT
   | RBRACKET
+  | RBRACE
   | RANGLE
   | PROTECT
   | PLUS
@@ -28,6 +29,7 @@ type token =
   | LSQUARE
   | LSHIFT
   | LBRACKET
+  | LBRACE
   | LANGLE
   | LABEL of (string)
   | INTERF

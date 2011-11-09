@@ -6,7 +6,7 @@ A smart assembler for 65(C)02 processors.
 Version
 -------
 
-The current version is 0.08.
+The current version is 0.09.
 
 Why another 6502 assembler?
 ---------------------------
@@ -461,6 +461,40 @@ legal to expand a macro inside a macro definition like this:
 
 There are currently no facilities for assembly-time conditionals or looping
 constructs.
+
+Passing addressing modes to macros
+----------------------------------
+
+A new feature in version 0.09 lets you pass arbitrary addressing modes to
+macros. Macro definitions are unchanged:
+
+	.macro add res a b
+	lda %a
+	clc
+	adc %b
+	sta %res
+	.mend
+
+As long as %a, %b and %res are written by themselves and not as part of a larger
+expression or within some other addressing mode, the macro can be invoked as
+follows:
+
+	@add {$70}, {($72),y}, {($74),y}
+
+This substitutes the given addresses into the macro expansion. The braces {} are
+mandatory if you wish to use this feature, though if they are omitted then an
+absolute address can still be substituted into the macro expansion, as you might
+expect.
+
+In the above case, the macro expansion will look like:
+
+	lda ($72),y
+	clc
+	adc ($74),y
+	sta $70
+
+Note again that addresses can't be modified at all in the macro expansion: this
+might limit the usefulness of this feature, in practice.
 
 Contexts
 --------

@@ -36,30 +36,6 @@ let rec map_expr fn = function
   | Or (a, b) -> fn (Or (map_expr fn a, map_expr fn b))
   | And (a, b) -> fn (And (map_expr fn a, map_expr fn b))
 
-exception UnknownMacroArg of string
-exception TooManyParams
-exception NotEnoughParams
-
-let subst_macro_args expr formal_args actual_args =
-  let f2a = Hashtbl.create 5 in
-  let rec build_hash form act =
-    match form, act with
-      [], [] -> ()
-    | [], _ -> raise TooManyParams
-    | _, [] -> raise NotEnoughParams
-    | f::forms, a::acts -> Hashtbl.add f2a f a; build_hash forms acts in
-  build_hash formal_args actual_args;
-  map_expr
-    (function
-        VarRef [name] ->
-	  begin try
-	    Hashtbl.find f2a name
-	  with Not_found ->
-	    raise (UnknownMacroArg name)
-	  end
-      | x -> x)
-    expr
-
 exception UnknownVariable of string
 
 let eval ?env expr =

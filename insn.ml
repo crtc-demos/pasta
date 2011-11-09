@@ -17,10 +17,13 @@ type insn =
   | Interf of string list * string list
   | Protect of string list list
   | Macrodef of string * string list * insn list
-  | Expmacro of string * const_expr list
+  | Expmacro of string * macro_arg list
   | DeclVars of int * string list
   | SourceLoc of srcloc
   | IncludeFile of filename
+
+and macro_arg = Const_expr of const_expr
+	      | Addressing_mode of raw_addrmode
 
 and ascii_part = AscString of string
                | AscChar of const_expr
@@ -193,6 +196,48 @@ let addrmode_from_raw env first_pass vpc opcode am =
       else
         raise (BadAddrmode "implied")
 
+exception UnknownMacroArg of string
+exception TooManyParams
+exception NotEnoughParams
+exception BadGenericAddrUsage of string
+
+let make_arg_lookup formal_args actual_args =
+  let f2a = Hashtbl.create 5 in
+  let rec build_hash form act =
+    match form, act with
+      [], [] -> ()
+    | [], _ -> raise TooManyParams
+    | _, [] -> raise NotEnoughParams
+    | f::forms, a::acts -> Hashtbl.add f2a f a; build_hash forms acts in
+  build_hash formal_args actual_args;
+  f2a
+
+let lookup_arg f2a argname =
+  try
+    Hashtbl.find f2a argname
+  with Not_found ->
+    raise (UnknownMacroArg argname)
+
+(* Return a string option "Some x" if the addrmode contains a single variable
+   reference x which is suitable for substituting with a generalised
+   addressing-mode macro argument, None otherwise.  *)
+
+let addrmode_var_subst raw_addrmode =
+  match raw_addrmode with
+    Raw_num (VarRef [name]) -> Some name
+  | _ -> None
+
+let subst_macro_expr expr f2a =
+  map_expr
+    (function
+        VarRef [name] ->
+	  begin match lookup_arg f2a name with
+	    Const_expr cexp -> cexp
+	  | Addressing_mode _ -> raise (BadGenericAddrUsage name)
+	  end
+      | x -> x)
+    expr
+
 (* Expand macros once in PROG.  Note macros are expanded to nested scopes at
    their points of invocation.  *)
 
@@ -211,19 +256,35 @@ let rec invoke_macros_once prog macros =
 	      Printf.sprintf "%s:%d" !expandedfromfile !expandedfromline))
 	  in let infile = ref "<unknown>" and lineno = ref 0 in
 	  begin try
+	    let arg_lookup = make_arg_lookup formal_args actual_args in
 	    let expansion = List.fold_left
 	      (fun insns body_insn ->
 		match body_insn with
 		  Raw_insn (opc, raw_addrmode) ->
-	            let raw_addrmode' = M6502.map_raw_addrmode_expr
-		      (fun expr ->
-		        subst_macro_args expr formal_args actual_args)
-		      raw_addrmode in
-		    Raw_insn (opc, raw_addrmode') :: insns
+		    let var_opt = addrmode_var_subst raw_addrmode in
+		    let new_insn = match var_opt with
+		      Some name ->
+			begin match lookup_arg arg_lookup name with
+			  Addressing_mode am -> Raw_insn (opc, am)
+			| Const_expr cexp -> Raw_insn (opc, Raw_num cexp)
+			end
+		    | None ->
+		        let raw_addrmode' = M6502.map_raw_addrmode_expr
+			  (fun expr -> subst_macro_expr expr arg_lookup)
+			  raw_addrmode in
+			Raw_insn (opc, raw_addrmode') in
+		    new_insn :: insns
 		| Expmacro (name, args) ->
 		    let args' = List.map
-		      (fun arg ->
-		        subst_macro_args arg formal_args actual_args)
+		      (function
+		          Const_expr cexp ->
+			    let cexp' = subst_macro_expr cexp arg_lookup in
+			    Const_expr cexp'
+		        | Addressing_mode am -> 
+			    let am' = M6502.map_raw_addrmode_expr
+			      (fun expr -> subst_macro_expr expr arg_lookup)
+			      am in
+			    Addressing_mode am')
 		      args in
 		    Expmacro (name, args') :: insns
 		| SourceLoc l ->
@@ -243,20 +304,25 @@ let rec invoke_macros_once prog macros =
 	      []
 	      body in
 	    true, Scope (Env.new_env (), List.rev expansion) :: insns
-	  with Expr.UnknownMacroArg arg ->
+	  with UnknownMacroArg arg ->
 	    raise (Line.AssemblyError (
 	      Printf.sprintf "Unknown macro arg '%s'" arg,
 	      Printf.sprintf "%s:%d" !infile !lineno))
-	  | Expr.TooManyParams ->
+	  | TooManyParams ->
 	    raise (Line.AssemblyError (
 	      Printf.sprintf "Too many parameters for macro '%s'" name,
 	      Printf.sprintf "%s:%d (defined at %s:%d)" !expandedfromfile
 	        !expandedfromline !infile !lineno))
-	  | Expr.NotEnoughParams ->
+	  | NotEnoughParams ->
 	    raise (Line.AssemblyError (
 	      Printf.sprintf "Not enough parameters for macro '%s'" name,
 	      Printf.sprintf "%s:%d (defined at %s:%d)" !expandedfromfile
 	        !expandedfromline !infile !lineno))
+	  | BadGenericAddrUsage name ->
+	    raise (Line.AssemblyError (
+	      Printf.sprintf "Bad usage of macro address argument '%s'" name,
+	      Printf.sprintf "%s:%d (expanded from %s:%d)" !infile !lineno
+	        !expandedfromfile !expandedfromline))
 	  end
       | Scope (nested_env, body) ->
           let expanded', body' = invoke_macros_once body macros in

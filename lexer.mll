@@ -174,6 +174,8 @@ and token = parse
   | ")"			{ RBRACKET }
   | "["			{ LSQUARE }
   | "]"			{ RSQUARE }
+  | "{"			{ LBRACE }
+  | "}"			{ RBRACE }
   | "x"			{ X }
   | "y"			{ Y }
   | "a"			{ A }

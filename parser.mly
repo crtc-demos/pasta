@@ -6,7 +6,7 @@ open M6502
 %}
 
 %token COMMA EOF HASH
-%token LBRACKET RBRACKET LSQUARE RSQUARE
+%token LBRACKET RBRACKET LSQUARE RSQUARE LBRACE RBRACE
 %token PLUS MINUS TIMES DIVIDE LANGLE RANGLE PERCENT DOT NOT
 %token OR EOR AND LSHIFT RSHIFT ARSHIFT
 %token X Y A
@@ -97,15 +97,7 @@ context: CONTEXT l = LABEL EOL is = insns_in_scope CTXEND
 					{ Context (Env.new_env (), l, is) }
 ;
 
-alu_op: op = INSN a = am_immediate
-      | op = INSN a = am_num
-      | op = INSN a = am_num_x
-      | op = INSN a = am_num_y
-      | op = INSN a = am_indirect
-      | op = INSN a = am_x_indirect
-      | op = INSN a = am_indirect_y
-      | op = INSN a = am_accumulator
-      | op = INSN a = am_implied	{ Raw_insn (op, a) }
+alu_op: op = INSN a = am_param		{ Raw_insn (op, a) }
 ;
 
 am_immediate: HASH n = num		{ Raw_immediate n }
@@ -194,7 +186,19 @@ expand_macro: m = EXPMACRO al = separated_list(COMMA, param)
 					{ Expmacro (m, al) }
 ;
 
-param: n = num				{ n }
+param: n = num				{ Const_expr n }
+     | LBRACE am = am_param RBRACE	{ Addressing_mode am }
+;
+
+am_param: a = am_immediate
+        | a = am_num
+	| a = am_num_x
+	| a = am_num_y
+	| a = am_indirect
+	| a = am_x_indirect
+	| a = am_indirect_y
+	| a = am_accumulator
+	| a = am_implied		{ a }
 ;
 
 num: n = NUM				{ Expr.Int n }

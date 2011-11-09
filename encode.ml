@@ -25,9 +25,11 @@ let output_addrmode fh env vpc addrmode args =
     Accumulator | Implied -> ()
   | Absolute | Absolute_X | Absolute_Y | Indirect | X_Indirjmp ->
       output_data fh 2 (single_arg args)
-  | Immediate | ZP_Indirect | X_Indirect | Indirect_Y | Zeropage | Zeropage_X
+  | ZP_Indirect | X_Indirect | Indirect_Y | Zeropage | Zeropage_X
   | Zeropage_Y ->
       output_data fh 1 (single_arg args)
+  | Immediate ->
+      output_data fh 1 (single_arg args) ~trunc:true
   | Relative ->
       let target = single_arg args in
       let offset = Int32.sub target (Int32.of_int vpc) in

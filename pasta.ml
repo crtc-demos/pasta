@@ -166,9 +166,9 @@ let _ =
     let macros = collect_macros frags in
     let prog = Insn.invoke_macros prog macros in
     let origin, prog = extract_origin prog in
-    collect_contexts frags;
+    collect_contexts prog;
     collect_notemps frags;
-    Insn.find_dependencies frags;
+    Insn.find_dependencies prog;
     Context.ctxs#transitive_closure;
     collect_vars frags;
     let igraph = Alloc.build_graph () in

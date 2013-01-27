@@ -6,7 +6,7 @@ A smart assembler for 65(C)02 processors.
 Version
 -------
 
-The current version is 0.09.
+The current version is 0.10.
 
 Why another 6502 assembler?
 ---------------------------
@@ -23,7 +23,7 @@ the least-significant byte) by three. Hoping for small and fast code, you pick
 some zero-page locations to use for temporary storage, say $70 and $71. Now your
 routine might look like this (untested!):
 
-multiply_xa_by_3:
+  multiply_xa_by_3:
 	; original number in [x:a].
 	sta $70
 	stx $71
@@ -45,7 +45,7 @@ that you've used $70 and $71 already in this function, you must either save
 those locations around call sites (big and slow!), or choose new zero-page
 locations. So we might write something like this:
 
-multiply_xa_by_5:
+  multiply_xa_by_5:
 	sta $72
 	stx $73
 	jsr multiply_xa_by_3
@@ -82,7 +82,7 @@ this can be handled for you. You can write this:
 	.context multiply_xa_by_3
 	; a 2-byte variable allocated from the above pool.
 	.var2 tmp
-multiply_xa_by_3:
+  multiply_xa_by_3:
 	; original number in [x:a].
 	sta %tmp
 	stx %tmp + 1
@@ -103,7 +103,7 @@ multiply_xa_by_3:
 	.context multiply_xa_by_5
 	; two 2-byte variables.
 	.var2 tmp1, tmp2
-multiply_xa_by_5:
+  multiply_xa_by_5:
 	sta %tmp1
 	stx %tmp1 + 1
 	jsr multiply_xa_by_3
@@ -246,7 +246,8 @@ Write immediates using decimal:
 In hexadecimal:
 
 	lda #$41
-or:	lda #0x41
+or:
+	lda #0x41
 
 In binary:
 
@@ -270,21 +271,21 @@ Labels
 
 Labels are written on a line by themselves, e.g.:
 
-foo
+  foo
 	rts
 
 Since colon counts as a line separator, the following also works:
 
-foo:
+  foo:
 	rts
 
 As does this:
 
-foo:	rts
+  foo:	rts
 
 But this does not work, since foo is not on a line by itself:
 
-foo	rts
+  foo	rts
 
 Data
 ----
@@ -309,7 +310,7 @@ Doublewords (four bytes):
 
 A block of memory:
 
-        .dsb 32, 0
+	.dsb 32, 0
 
 This will fill a block with 32 zero-bytes.
 
@@ -354,7 +355,7 @@ within a "scope" as follows:
 
 	.scope
 	ldx #5
-loop:
+  loop:
 	dex
 	bne loop
 	.scend
@@ -363,7 +364,7 @@ An alternative syntax (if you prefer) is:
 
 	.(
 	ldx #5
-loop:
+  loop:
 	dex
 	bne loop
 	.)
@@ -378,7 +379,7 @@ caused by multiple definitions.
 If you're not using contexts, you might find it good practice to wrap each of
 your functions with its own scope, like so:
 
-func1:
+  func1:
 	.(
 	...body of function...
 	rts
@@ -517,7 +518,7 @@ A context definition looks like:
 
 	.context foo
 	.var a, b, c
-foo:
+  foo:
 	lda %a
 	sta %b
 	...context body...
@@ -562,7 +563,7 @@ that it uses none of the automatically-managed temporary space using the
 	.notemps oswrch
 	
 	.context print_a
-print_a:
+  print_a:
 	lda #65
 	jsr oswrch
 	rts
@@ -592,7 +593,7 @@ follows:
 
 	.context add
 	.var res, a, b
-add:
+  add:
 	lda %a
 	clc
 	adc %b
@@ -604,7 +605,7 @@ You can then call the function like this:
 
 	.context my_program
 	.var add_result
-my_program:
+  my_program:
 	lda #5
 	sta %add.a
 	lda #7
@@ -626,7 +627,7 @@ we have the "add" context from above, and another similar one for subtraction:
 
 	.context sub
 	.var res, a, b
-sub:
+  sub:
 	lda %a
 	sec
 	sbc %b
@@ -637,7 +638,7 @@ sub:
 	.context my_program
 	.var add_result
 	.var sub_result
-my_program:
+  my_program:
 	lda #5
 	sta %add.a
 	lda #7
@@ -662,7 +663,7 @@ overwritten the value we wanted to use.
 
 Pictorially, we have:
 
-          +--------------+
+	  +--------------+
 	  |  my_program  |
 	  +--------------+
            /            \
@@ -685,7 +686,7 @@ allocated to distinct locations. In the above program you should write:
 
 	.context my_program
 	.var sub_result
-my_program:
+  my_program:
 	lda #5
 	sta %add.a
 	lda #7
@@ -726,8 +727,8 @@ the complexity of your program of course), you'll probably be fine.
 
 If you do happen to run out of space, Pasta will give you a message and exit:
 
-Ran out of temps!
-No space for: hello.i
+  Ran out of temps!
+  No space for: hello.i
 
 In this case, your best options are to:
 
@@ -747,8 +748,8 @@ practice for me at least, so far.
 Links
 -----
 
-xa65: http://www.floodgap.com/retrotech/xa/
-The Ophis Assembler: http://hkn.eecs.berkeley.edu/~mcmartin/ophis/
+* xa65: http://www.floodgap.com/retrotech/xa/
+* The Ophis Assembler: http://hkn.eecs.berkeley.edu/~mcmartin/ophis/
 
 Contact
 -------

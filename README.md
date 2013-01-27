@@ -247,6 +247,7 @@ In hexadecimal:
 
 	lda #$41
 or:
+
 	lda #0x41
 
 In binary:

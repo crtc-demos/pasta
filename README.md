@@ -23,51 +23,51 @@ the least-significant byte) by three. Hoping for small and fast code, you pick
 some zero-page locations to use for temporary storage, say $70 and $71. Now your
 routine might look like this (untested!):
 
-  multiply_xa_by_3:
-	; original number in [x:a].
-	sta $70
-	stx $71
-	asl a
-	rol $71
-	; now [$71:a] are the original number * 2.
-	clc
-	adc $70
-	sta $70
-	txa
-	adc $71
-	tax
-	lda $70
-	; now [x:a] should be the original number * 3.
-	rts
+	multiply_xa_by_3:
+		; original number in [x:a].
+		sta $70
+		stx $71
+		asl a
+		rol $71
+		; now [$71:a] are the original number * 2.
+		clc
+		adc $70
+		sta $70
+		txa
+		adc $71
+		tax
+		lda $70
+		; now [x:a] should be the original number * 3.
+		rts
 
 Now, you want to write another routine which calls this function. Remembering
 that you've used $70 and $71 already in this function, you must either save
 those locations around call sites (big and slow!), or choose new zero-page
 locations. So we might write something like this:
 
-  multiply_xa_by_5:
-	sta $72
-	stx $73
-	jsr multiply_xa_by_3
-	sta $74
-	stx $75
+	multiply_xa_by_5:
+		sta $72
+		stx $73
+		jsr multiply_xa_by_3
+		sta $74
+		stx $75
 
-	; multiply [$73:$72] by 2.
-	lda $73
-	asl $72
-	rol a
-	tax
+		; multiply [$73:$72] by 2.
+		lda $73
+		asl $72
+		rol a
+		tax
 
-	; add saved input * 3 value.
-	lda $72
-	clc
-	adc $74
-	sta $72
-	txa
-	adc $75
-	tax
-	lda $72
-	rts
+		; add saved input * 3 value.
+		lda $72
+		clc
+		adc $74
+		sta $72
+		txa
+		adc $75
+		tax
+		lda $72
+		rts
 
 Now when we call multiply_xa_by_5, we must remember that we've used all the
 zero-page locations from $70 up to $75. Any changes to either function must be
@@ -76,57 +76,57 @@ carefully checked in case variables are accidentally overwritten.
 Handling this manually, whilst possible, can be quite error-prone. In Pasta,
 this can be handled for you. You can write this:
 
-	; Define automatically-allocated chunk of zero-page locations.
-	.temps $70..$7f
-	
-	.context multiply_xa_by_3
-	; a 2-byte variable allocated from the above pool.
-	.var2 tmp
-  multiply_xa_by_3:
-	; original number in [x:a].
-	sta %tmp
-	stx %tmp + 1
-	asl a
-	rol %tmp + 1
-	; now [%tmp1+1:a] are the original number * 2.
-	clc
-	adc %tmp
-	sta %tmp
-	txa
-	adc %tmp + 1
-	tax
-	lda %tmp
-	; now [x:a] should be the original number * 3.
-	rts
-	.ctxend
+		; Define automatically-allocated chunk of zero-page locations.
+		.temps $70..$7f
 
-	.context multiply_xa_by_5
-	; two 2-byte variables.
-	.var2 tmp1, tmp2
-  multiply_xa_by_5:
-	sta %tmp1
-	stx %tmp1 + 1
-	jsr multiply_xa_by_3
-	sta %tmp2
-	stx %tmp2 + 1
+		.context multiply_xa_by_3
+		; a 2-byte variable allocated from the above pool.
+		.var2 tmp
+	multiply_xa_by_3:
+		; original number in [x:a].
+		sta %tmp
+		stx %tmp + 1
+		asl a
+		rol %tmp + 1
+		; now [%tmp1+1:a] are the original number * 2.
+		clc
+		adc %tmp
+		sta %tmp
+		txa
+		adc %tmp + 1
+		tax
+		lda %tmp
+		; now [x:a] should be the original number * 3.
+		rts
+		.ctxend
 
-	; multiply tmp1 by 2.
-	lda %tmp1 + 1
-	asl %tmp1
-	rol a
-	tax
+		.context multiply_xa_by_5
+		; two 2-byte variables.
+		.var2 tmp1, tmp2
+	multiply_xa_by_5:
+		sta %tmp1
+		stx %tmp1 + 1
+		jsr multiply_xa_by_3
+		sta %tmp2
+		stx %tmp2 + 1
 
-	; add saved the input * 3 value in tmp2.
-	lda %tmp1
-	clc
-	adc %tmp2
-	sta %tmp1
-	txa
-	adc %tmp2 + 1
-	tax
-	lda %tmp1
-	rts
-	.ctxend
+		; multiply tmp1 by 2.
+		lda %tmp1 + 1
+		asl %tmp1
+		rol a
+		tax
+
+		; add saved the input * 3 value in tmp2.
+		lda %tmp1
+		clc
+		adc %tmp2
+		sta %tmp1
+		txa
+		adc %tmp2 + 1
+		tax
+		lda %tmp1
+		rts
+		.ctxend
 
 This generates code which is identically as fast as before, but we don't have to
 worry about which zero-page locations we've used any more. Pasta notices that
@@ -271,21 +271,21 @@ Labels
 
 Labels are written on a line by themselves, e.g.:
 
-  foo
-	rts
+	foo
+		rts
 
 Since colon counts as a line separator, the following also works:
 
-  foo:
-	rts
+	foo:
+		rts
 
 As does this:
 
-  foo:	rts
+	foo:	rts
 
 But this does not work, since foo is not on a line by itself:
 
-  foo	rts
+	foo	rts
 
 Data
 ----
@@ -353,21 +353,21 @@ Scopes
 Labels defined in your program are visible globally, unless they are enclosed
 within a "scope" as follows:
 
-	.scope
-	ldx #5
-  loop:
-	dex
-	bne loop
-	.scend
+		.scope
+		ldx #5
+	loop:
+		dex
+		bne loop
+		.scend
 
 An alternative syntax (if you prefer) is:
 
-	.(
-	ldx #5
-  loop:
-	dex
-	bne loop
-	.)
+		.(
+		ldx #5
+	loop:
+		dex
+		bne loop
+		.)
 
 Any label defined within a scope is only visible inside that scope (and in more
 deeply-nested scopes). Forward references work as expected. There's currently no
@@ -379,11 +379,11 @@ caused by multiple definitions.
 If you're not using contexts, you might find it good practice to wrap each of
 your functions with its own scope, like so:
 
-  func1:
-	.(
-	...body of function...
-	rts
-	.)
+	func1:
+		.(
+		...body of function...
+		rts
+		.)
 
 Note that the entry point (func1) is outside the scope, so it will be visible
 globally. Any labels defined inside the function will be invisible to the rest
@@ -516,14 +516,14 @@ so:
 
 A context definition looks like:
 
-	.context foo
-	.var a, b, c
-  foo:
-	lda %a
-	sta %b
-	...context body...
-	rts
-	.ctxend
+		.context foo
+		.var a, b, c
+	foo:
+		lda %a
+		sta %b
+		...context body...
+		rts
+		.ctxend
 
 Taking this apart a bit, the single word 'foo' after the context directive
 defines an entry point for the context, and should correspond to a label defined
@@ -560,14 +560,14 @@ which does not have a context around it, you can do so if you explicitly declare
 that it uses none of the automatically-managed temporary space using the
 ".notemps" directive:
 
-	.notemps oswrch
-	
-	.context print_a
-  print_a:
-	lda #65
-	jsr oswrch
-	rts
-	.ctxend
+		.notemps oswrch
+
+		.context print_a
+	print_a:
+		lda #65
+		jsr oswrch
+		rts
+		.ctxend
 
 If the "oswrch" function *does* use some of the temp variables though,
 unexpected things will happen, so take care.
@@ -591,30 +591,30 @@ arguments can be passed and returned in fast zero-page locations to/from
 functions wrapped in contexts. As an example, a function can be defined as
 follows:
 
-	.context add
-	.var res, a, b
-  add:
-	lda %a
-	clc
-	adc %b
-	sta %res
-	rts
-	.ctxend
+		.context add
+		.var res, a, b
+	add:
+		lda %a
+		clc
+		adc %b
+		sta %res
+		rts
+		.ctxend
 
 You can then call the function like this:
 
-	.context my_program
-	.var add_result
-  my_program:
-	lda #5
-	sta %add.a
-	lda #7
-	sta %add.b
-	jsr add
-	lda %add.res
-	sta %add_result
-	rts
-	.ctxend
+		.context my_program
+		.var add_result
+	my_program:
+		lda #5
+		sta %add.a
+		lda #7
+		sta %add.b
+		jsr add
+		lda %add.res
+		sta %add_result
+		rts
+		.ctxend
 
 Because 'add' is called from 'my_program', Pasta's zero-page allocator will
 ensure that "add_result", "res", "a" and "b" are each allocated to different
@@ -625,36 +625,36 @@ there is no guarantee that each callee's variables will all be distinct. (If
 this wasn't so, we would run out of locations to allocate rather quickly). Say
 we have the "add" context from above, and another similar one for subtraction:
 
-	.context sub
-	.var res, a, b
-  sub:
-	lda %a
-	sec
-	sbc %b
-	sta %res
-	rts
-	.ctxend
+		.context sub
+		.var res, a, b
+	sub:
+		lda %a
+		sec
+		sbc %b
+		sta %res
+		rts
+		.ctxend
 
-	.context my_program
-	.var add_result
-	.var sub_result
-  my_program:
-	lda #5
-	sta %add.a
-	lda #7
-	sta %add.b
-	jsr add
+		.context my_program
+		.var add_result
+		.var sub_result
+	my_program:
+		lda #5
+		sta %add.a
+		lda #7
+		sta %add.b
+		jsr add
 
-	lda #15
-	sta %sub.a
-	; Uh-oh! "%sub.a" might have been the same as "%add.res"!
-	lda %add.res
-	sta %sub.b
-	jsr sub
-	lda %sub.res
-	sta %sub_result
-	rts
-	.ctxend
+		lda #15
+		sta %sub.a
+		; Uh-oh! "%sub.a" might have been the same as "%add.res"!
+		lda %add.res
+		sta %sub.b
+		jsr sub
+		lda %sub.res
+		sta %sub_result
+		rts
+		.ctxend
 
 Now: whereas %add.a, %add.b and %add.res will be distinct from %add_result,
 %add.a, %add.b or %add.res may be the same as any of %sub.a, %sub.b or %sub.res.
@@ -663,9 +663,9 @@ overwritten the value we wanted to use.
 
 Pictorially, we have:
 
-	  +--------------+
-	  |  my_program  |
-	  +--------------+
+          +--------------+
+          |  my_program  |
+          +--------------+
            /            \
     +-------+          +-------+
     |  add  |          |  sub  |
@@ -684,29 +684,30 @@ variables from sibling contexts with overlapping ranges like this, you must
 explicitly tell Pasta about it, to make sure the affected variables are
 allocated to distinct locations. In the above program you should write:
 
-	.context my_program
-	.var sub_result
-  my_program:
-	lda #5
-	sta %add.a
-	lda #7
-	sta %add.b
-	jsr add
+		.context my_program
+		.var sub_result
+	my_program:
+		lda #5
+		sta %add.a
+		lda #7
+		sta %add.b
+		jsr add
 
-	; This will stop "%add.res" from being allocated to the same location
-	; as a variable in any context which this context calls.
-	.protect %add.res
+		; This will stop "%add.res" from being allocated to the same
+		; location as a variable in any context which this context
+		; calls.
+		.protect %add.res
 
-	lda #15
-	sta %sub.a
+		lda #15
+		sta %sub.a
 
-	lda %add.res
-	sta %sub.b
-	jsr sub
-	lda %sub.res
-	sta %sub_result
-	rts
-	.ctxend
+		lda %add.res
+		sta %sub.b
+		jsr sub
+		lda %sub.res
+		sta %sub_result
+		rts
+		.ctxend
 
 Only use ".protect" when necessary (as above), else you may find yourself
 running out of zero-page locations too quickly. The "protection" acts for the
@@ -727,8 +728,8 @@ the complexity of your program of course), you'll probably be fine.
 
 If you do happen to run out of space, Pasta will give you a message and exit:
 
-  Ran out of temps!
-  No space for: hello.i
+	Ran out of temps!
+	No space for: hello.i
 
 In this case, your best options are to:
 

@@ -26,6 +26,11 @@ clean:
 cleaner: clean
 	rm -f .depend
 
+.PHONY:	test
+test:	all
+	ocamlfind ocamlc -package kaputt -linkpkg runtests.ml -o runtests
+	./runtests
+
 ML_ERROR:
 	@echo Some sort of Ocaml dependency error occurred.
 	@false

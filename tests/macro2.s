@@ -10,5 +10,6 @@ foo:
 	bcc foo
 	.mend
 
+bob:
 	@add 16, 18, 20
 	@add 16, bob, 20

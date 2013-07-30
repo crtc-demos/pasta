@@ -28,7 +28,7 @@ cleaner: clean
 
 .PHONY:	test
 test:	all
-	ocamlfind ocamlc -package kaputt -linkpkg runtests.ml -o runtests
+	ocamlfind ocamlc -package kaputt,str -linkpkg runtests.ml -o runtests
 	./runtests
 
 ML_ERROR:

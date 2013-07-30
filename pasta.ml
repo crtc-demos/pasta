@@ -163,6 +163,7 @@ let _ =
   begin try
     let frags = resolve_includes frags_toplevel in
     let prog = collect_insns frags in
+    Layout.verify_declarations frags;
     let macros = collect_macros frags in
     let prog = Insn.invoke_macros prog macros in
     let origin, prog = extract_origin prog in

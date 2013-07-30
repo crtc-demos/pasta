@@ -24,20 +24,47 @@ let rec insn_size env = function
   | Insn (opc, adm, _) -> M6502.insn_size opc adm
   | _ -> failwith "Can't find size of insn"
 
+let rec verify_declarations insns =
+  let labels = Hashtbl.create 10
+  and aliases = Hashtbl.create 10
+  and origin = Hashtbl.create 1
+  and contexts = Hashtbl.create 10
+  and macros = Hashtbl.create 10 in
+  let add_once desc ht name sourceloc =
+    if Hashtbl.mem ht name then
+      raise (Line.AssemblyError
+        ((Printf.sprintf "Multiple %s definition '%s'" desc name),
+	 Insn.string_of_srcloc sourceloc));
+    Hashtbl.add ht name () in
+  let sourceloc = ref (SourceLine ("<unknown>", 0)) in
+  let check = function
+    SourceLoc sl -> sourceloc := sl
+  | Label l -> add_once "label" labels l !sourceloc
+  | Alias (a, _) -> add_once "alias" aliases a !sourceloc
+  | Origin _ -> add_once "origin" origin ".org" !sourceloc
+  | Context (_, name, inner) ->
+      add_once "context" contexts name !sourceloc;
+      verify_declarations inner
+  | Scope (_, inner) ->
+      verify_declarations inner
+  | Macrodef (name, _, _) -> add_once "macro" macros name !sourceloc
+  | _ -> () in
+  List.iter check insns
+
 (* Do layout. Convert raw (parsed) insns into "cooked" insns, ready for
    encoding. Also flatten out nested scopes, and reverse the program so it's in
    the "correct" order (with the head of the list as the first instruction).  *)
 
 let layout env first_pass vpc_start insns =
-  let insns', last_vpc = Insn.fold_left_with_env
-    (fun env lineno (insns, vpc) insn ->
+  let insns', last_vpc, iter_again = Insn.fold_left_with_env
+    (fun env lineno (insns, vpc, iter_again) insn ->
       match insn with
         Raw_insn (opcode, raw_addrmode) ->
 	  begin try
 	    let addrmode, args =
 	      addrmode_from_raw env first_pass vpc opcode raw_addrmode in
 	    let insn_size = M6502.insn_size opcode addrmode in
-	    Insn (opcode, addrmode, args) :: insns, vpc + insn_size
+	    Insn (opcode, addrmode, args) :: insns, vpc + insn_size, iter_again
 	  with Insn.BadAddrmode am ->
 	    raise (Line.AssemblyError
 	      ((Printf.sprintf "Bad addressing mode '%s'" am),
@@ -49,14 +76,18 @@ let layout env first_pass vpc_start insns =
 	  end
       | Label foo ->
           Env.replace env foo (Int32.of_int vpc);
-	  insns, vpc
+	  insns, vpc, iter_again
       | Alias (label, cexp) ->
-          let cst = Expr.eval ~env cexp in
-	  Env.replace env label cst;
-	  insns, vpc
-      | x -> x :: insns, vpc + (insn_size env x))
+	  begin try
+	    let cst = Expr.eval ~env cexp in
+	    Env.replace env label cst;
+	    insns, vpc, iter_again
+	  with Expr.Label_not_found _ as e ->
+	    insns, vpc, true
+	  end
+      | x -> x :: insns, vpc + (insn_size env x), iter_again)
     [env]
-    ([], vpc_start)
+    ([], vpc_start, false)
     insns in
   let lineno = ref (SourceLine ("<unknown>", 0)) in
   (* Stick context entry points into top-level environment (hack!)  *)
@@ -76,13 +107,14 @@ let layout env first_pass vpc_start insns =
           lineno := line
       | _ -> ())
     insns;
-  insns', last_vpc
+  insns', last_vpc, iter_again
 
 let iterate_layout vpc_start insns =
   let outer_env = Env.new_env () in
   let rec iter first_pass previous_cooked_insns =
-    let cooked_insns, last_pc = layout outer_env first_pass vpc_start insns in
-    if cooked_insns <> previous_cooked_insns then
+    let cooked_insns, last_pc, iterate_again =
+      layout outer_env first_pass vpc_start insns in
+    if iterate_again || cooked_insns <> previous_cooked_insns then
       iter false cooked_insns
     else
       cooked_insns, last_pc, outer_env in

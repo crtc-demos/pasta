@@ -61,7 +61,23 @@ let test_list = [
   { title = "indirect jumps"; form = `Good; src = "tests/ind-jump.s" };
   { title = "labels"; form = `Good; src = "tests/labels.s" };
   { title = "linefeeds/colons"; form = `Good; src = "tests/linefeed.s" };
-  { title = "duplicate labels"; form = `Bad; src = "tests/duplicate_labels.s" };
+  { title = "duplicate labels"; form = `Check_err (match_regexp
+      "Multiple label definition 'foo' at [^:]+:4");
+    src = "tests/duplicate_labels.s" };
+  { title = "duplicate macros"; form = `Check_err (match_regexp
+      "Multiple macro definition 'foo' at [^:]+:5");
+    src = "tests/duplicate_macros.s" };
+  { title = "duplicate origin"; form = `Check_err (match_regexp
+      "Multiple origin definition '.org' at [^:]+:2");
+    src = "tests/duplicate_origin.s" };
+  { title = "duplicate contexts"; form = `Check_err (match_regexp
+      "Multiple context definition 'foo' at [^:]+:7");
+    src = "tests/duplicate_ctx.s" };
+  { title = "duplicate aliases"; form = `Check_err (match_regexp
+      "Multiple alias definition 'foo' at [^:]+:2");
+    src = "tests/duplicate_aliases.s" };
+  { title = "dependent aliases"; form = `Good;
+    src = "tests/dependent_aliases.s" };
   { title = "local data labels"; form = `Good;
     src = "tests/local_data_labels.s"};
   { title = "synthesized conditional branch"; form = `Good;

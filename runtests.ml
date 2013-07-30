@@ -41,8 +41,8 @@ let test_list = [
   { title = "synthesized conditional branch"; form = `Good;
     src = "tests/long-cbra.s" };
   { title = "macros"; form = `Good; src = "tests/macro.s" };
-  { title = "macros 2"; form = `Good; src = "tests/macro2.s" };
-  { title = "macros 3"; form = `Good; src = "tests/macro3.s" };
+  { title = "macros 2"; form = `Bad; src = "tests/macro2.s" };
+  { title = "macros 3"; form = `Bad; src = "tests/macro3.s" };
   { title = "macros 4"; form = `Bad; src = "tests/macro4.s" };
   { title = "macros 5"; form = `Good; src = "tests/macro5.s" };
   { title = "macros 6"; form = `Good; src = "tests/macro6.s" };

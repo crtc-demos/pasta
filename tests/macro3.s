@@ -3,7 +3,7 @@ foo:
 	lda %a
 	clc
 	adc %b
-	sta %res
+	sta %ret
 	lda %a+1
 	adc %b+1
 	sta %res+1

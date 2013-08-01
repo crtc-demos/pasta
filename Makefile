@@ -6,6 +6,8 @@ OCAMLMKTOP = ocamlmktop
 MENHIR = menhir
 OCAMLDEP = ocamldep
 OCAMLDSORT = ocamldsort
+INSTALL = install
+PREFIX = /usr/local
 
 COBJ = 
 
@@ -30,6 +32,9 @@ cleaner: clean
 test:	all
 	ocamlfind ocamlc -package kaputt,str -linkpkg runtests.ml -o runtests
 	./runtests
+
+install: all
+	$(INSTALL) $(TARGET) $(PREFIX)/bin
 
 ML_ERROR:
 	@echo Some sort of Ocaml dependency error occurred.

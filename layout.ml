@@ -107,6 +107,17 @@ let layout env first_pass vpc_start insns =
 	    al in
 	  let ascii' = Ascii items' in
 	  ascii' :: insns, vpc + (insn_size env insn), iter_again
+      | DataBlock (numexp, bvalexp) ->
+	  let numexp' = try
+	    Expr.subst_labels ~env numexp
+	  with Expr.Label_not_found _ ->
+	    numexp in
+	  let bvalexp' = try
+	    Expr.subst_labels ~env bvalexp
+	  with Expr.Label_not_found _ ->
+	    bvalexp in
+	  let dblk' = DataBlock (numexp', bvalexp') in
+	  dblk' :: insns, vpc + (insn_size env insn), iter_again
       | x -> x :: insns, vpc + (insn_size env x), iter_again)
     [env]
     ([], vpc_start, false)

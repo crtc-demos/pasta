@@ -80,6 +80,8 @@ let test_list = [
     src = "tests/dependent_aliases.s" };
   { title = "local data labels"; form = `Good;
     src = "tests/local_data_labels.s"};
+  { title = "local dsb labels"; form = `Good;
+    src = "tests/local_dsb_labels.s"};
   { title = "synthesized conditional branch"; form = `Good;
     src = "tests/long-cbra.s" };
   { title = "macros"; form = `Good; src = "tests/macro.s" };

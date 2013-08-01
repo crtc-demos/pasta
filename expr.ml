@@ -70,6 +70,34 @@ let eval ?env expr =
 let eval_int ?env expr =
   Int32.to_int (eval ?env expr)
 
+let subst_labels ?env expr =
+  let rec subst' = function
+    Int i -> Int i
+  | Plus (a, b) -> Plus (subst' a, subst' b)
+  | Minus (a, b) -> Minus (subst' a, subst' b)
+  | Times (a, b) -> Times (subst' a, subst' b)
+  | Divide (a, b) -> Divide (subst' a, subst' b)
+  | Uminus a -> Uminus (subst' a)
+  | HiByte a -> HiByte (subst' a)
+  | LoByte a -> LoByte (subst' a)
+  | Not a -> Not (subst' a)
+  | Arshift (a, b) -> Arshift (subst' a, subst' b)
+  | Rshift (a, b) -> Rshift (subst' a, subst' b)
+  | Lshift (a, b) -> Lshift (subst' a, subst' b)
+  | Eor (a, b) -> Eor (subst' a, subst' b)
+  | Or (a, b) -> Or (subst' a, subst' b)
+  | And (a, b) -> And (subst' a, subst' b)
+  | ExLabel lab ->
+      begin try
+        match env with
+	  None -> raise Not_found
+	| Some e -> Int (Env.find e lab)
+      with Not_found ->
+        raise (Label_not_found lab)
+      end
+  | VarRef vl -> raise (UnknownVariable (String.concat "." vl)) in
+  subst' expr
+
 let to_string expr =
   let buf = Buffer.create 80 in
   let app s = Buffer.add_string buf s

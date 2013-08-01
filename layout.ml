@@ -85,6 +85,28 @@ let layout env first_pass vpc_start insns =
 	  with Expr.Label_not_found _ as e ->
 	    insns, vpc, true
 	  end
+      | Data (size, cexplist) ->
+	  let items' = List.map
+	    (fun cexp ->
+	      try
+	        Expr.subst_labels ~env cexp
+	      with Expr.Label_not_found _ ->
+	        cexp)
+	    cexplist in
+	  let data' = Data (size, items') in
+	  data' :: insns, vpc + (insn_size env insn), iter_again
+      | Ascii al ->
+	  let items' = List.map
+	    (function
+	      AscString s -> AscString s
+	    | AscChar cexp ->
+		try
+	          AscChar (Expr.subst_labels ~env cexp)
+		with Expr.Label_not_found _ ->
+	          AscChar cexp)
+	    al in
+	  let ascii' = Ascii items' in
+	  ascii' :: insns, vpc + (insn_size env insn), iter_again
       | x -> x :: insns, vpc + (insn_size env x), iter_again)
     [env]
     ([], vpc_start, false)

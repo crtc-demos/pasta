@@ -13,7 +13,7 @@ let invert_branch = function
   | _ -> failwith "Not a branch"
 
 let expand_synth_branch prog start_vpc env ~verbose =
-  let lineno = ref (SourceLine ("<unknown>", 0)) in
+  let lineno = ref unknown_sourceline in
   let expanded, _ = Insn.fold_right_with_env
     (fun env insn (acc, vpc) ->
       match insn with

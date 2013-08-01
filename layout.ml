@@ -36,7 +36,7 @@ let rec verify_declarations insns =
         ((Printf.sprintf "Multiple %s definition '%s'" desc name),
 	 Insn.string_of_srcloc sourceloc));
     Hashtbl.add ht name () in
-  let sourceloc = ref (SourceLine ("<unknown>", 0)) in
+  let sourceloc = ref unknown_sourceline in
   let check = function
     SourceLoc sl -> sourceloc := sl
   | Label l -> add_once "label" labels l !sourceloc
@@ -89,7 +89,7 @@ let layout env first_pass vpc_start insns =
     [env]
     ([], vpc_start, false)
     insns in
-  let lineno = ref (SourceLine ("<unknown>", 0)) in
+  let lineno = ref unknown_sourceline in
   (* Stick context entry points into top-level environment (hack!)  *)
   Insn.iter_with_context
     (fun ctx insn ->

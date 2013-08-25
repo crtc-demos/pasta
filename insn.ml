@@ -278,8 +278,17 @@ let rec invoke_macros_once prog macros =
 		    let args' = List.map
 		      (function
 		          Const_expr cexp ->
-			    let cexp' = subst_macro_expr cexp arg_lookup in
-			    Const_expr cexp'
+			    begin match cexp with
+			      VarRef [name] ->
+			        (* An unadorned variable reference in an
+				   expression can be passed to nested macro
+				   expansions as an addressing-mode
+				   argument.  *)
+			        lookup_arg arg_lookup name
+			    | _ ->
+				let cexp' = subst_macro_expr cexp arg_lookup in
+				Const_expr cexp'
+			    end
 		        | Addressing_mode am -> 
 			    let am' = M6502.map_raw_addrmode_expr
 			      (fun expr -> subst_macro_expr expr arg_lookup)

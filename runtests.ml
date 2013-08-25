@@ -112,7 +112,13 @@ let test_list = [
     src = "tests/scope.s" };
   { title = "labels invisible outside scope"; form = `Check_err (match_regexp
       "Label 'foo2' not found at [^:]+:11"); src = "tests/scope2.s" };
-  { title = "misc test"; form = `Good; src = "tests/test.s" }
+  { title = "misc test"; form = `Good; src = "tests/test.s" };
+  { title = "addressing-mode macro args"; form = `Good;
+    src = "tests/addrmode.s" };
+  { title = "addressing-mode macro args 2"; form = `Check_err (match_regexp
+      "Bad usage of macro address argument 'a' at [^:]+:12 (expanded from \
+       [^:]+:16)");
+    src = "tests/addrmode2.s" }
 ]
 
 let _ =

@@ -133,6 +133,12 @@ let rec resolve_includes prog =
 	  let p_resolved = resolve_includes parsed in
 	  Line.pop_include ();
 	  p_resolved @ out_insns
+      | Insn.Scope (ht, insns_in_scope) ->
+          let inner_resolved = resolve_includes insns_in_scope in
+	  Insn.Scope (ht, inner_resolved) :: out_insns
+      | Insn.Context (ht, ctxname, insns_in_ctx) ->
+          let inner_resolved = resolve_includes insns_in_ctx in
+	  Insn.Context (ht, ctxname, inner_resolved) :: out_insns
       | _ -> insn :: out_insns)
     prog
     []

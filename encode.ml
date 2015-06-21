@@ -89,7 +89,8 @@ let rec emit_insns fh start_vpc env insns =
 	| NoTemps _ -> failwith "Can't output notemps directive"
 	| Temps _ -> failwith "Can't output temps directive"
 	| Context _ -> failwith "Can't output context"
-	| IncludeFile _ -> failwith "Can't output include file")
+	| IncludeFile _ -> failwith "Can't output include file"
+	| CondBlock _ -> failwith "Can't output conditional block")
       insns
       start_vpc
   with OutOfRange addr ->

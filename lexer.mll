@@ -153,6 +153,13 @@ and token = parse
   | ".context"		{ CONTEXT }
   | ".ctxend"		{ CTXEND }
   | ".include"		{ INCLUDE }
+  | ".ifdef"		{ IFDEF }
+  | ".ifndef"		{ IFNDEF }
+  | ".if"		{ IF }
+  | ".else"		{ ELSE }
+  | ".elif"		{ ELIF }
+  | ".endif"		{ ENDIF }
+  | ".defined"		{ DEFINED }
   | ".."		{ UPTO }
   | "."			{ DOT }
   | ","			{ COMMA }
@@ -168,8 +175,16 @@ and token = parse
   | "<<"		{ LSHIFT }
   | ">>"		{ RSHIFT }
   | ">>>"		{ ARSHIFT }
+  | "<u"		{ LTU }
+  | ">u"		{ GTU }
+  | "<=u"		{ LEU }
+  | ">=u"		{ GEU }
   | "<"			{ LANGLE }
   | ">"			{ RANGLE }
+  | "="			{ EQUAL }
+  | "!="		{ NEQUAL }
+  | "<="		{ LE }
+  | ">="		{ GE }
   | "("			{ LBRACKET }
   | ")"			{ RBRACKET }
   | "["			{ LSQUARE }

@@ -1,0 +1,3 @@
+	.org ORIGIN
+
+	lda #BLA

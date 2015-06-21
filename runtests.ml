@@ -62,7 +62,7 @@ let test_list = [
   { title = "labels"; form = `Good; src = "tests/labels.s" };
   { title = "linefeeds/colons"; form = `Good; src = "tests/linefeed.s" };
   { title = "duplicate labels"; form = `Check_err (match_regexp
-      "Multiple label definition 'foo' at [^:]+:4");
+      "Multiple label or alias definition 'foo' at [^:]+:4");
     src = "tests/duplicate_labels.s" };
   { title = "duplicate macros"; form = `Check_err (match_regexp
       "Multiple macro definition 'foo' at [^:]+:5");
@@ -74,7 +74,7 @@ let test_list = [
       "Multiple context definition 'foo' at [^:]+:7");
     src = "tests/duplicate_ctx.s" };
   { title = "duplicate aliases"; form = `Check_err (match_regexp
-      "Multiple alias definition 'foo' at [^:]+:2");
+      "Multiple label or alias definition 'foo' at [^:]+:2");
     src = "tests/duplicate_aliases.s" };
   { title = "dependent aliases"; form = `Good;
     src = "tests/dependent_aliases.s" };

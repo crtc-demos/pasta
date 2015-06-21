@@ -13,13 +13,17 @@ open M6502
 %token MACRO MEND
 %token SCOPE SCEND CONTEXT CTXEND
 %token ORIGIN ASCII ALIAS DSB TEMPS NOTEMPS INTERF PROTECT UPTO INCLUDE
+%token IFDEF IFNDEF IF ELSE ELIF ENDIF DEFINED
+%token LE GE LTU GTU LEU GEU EQUAL NEQUAL
 %token <M6502.opcode> INSN
 %token <string> LABEL EXPMACRO STRING
 %token <int> DATA VAR
 %token <Insn.srcloc> EOL
 %token <int32> NUM
 
-%nonassoc LANGLE RANGLE
+%nonassoc WORD_PART
+%left EQUAL NEQUAL
+%left LANGLE RANGLE LE GE LTU GTU LEU GEU
 %left OR
 %left EOR
 %left AND
@@ -56,7 +60,8 @@ insn: i = alu_op
     | i = expand_macro
     | i = macro
     | i = scope
-    | i = context			{ i }
+    | i = context
+    | i = condblock_directive		{ i }
 ;
 
 macro: MACRO l = LABEL args = list(arg) EOL m = macro_seq MEND
@@ -79,7 +84,8 @@ arg: l = LABEL				{ l }
 
 minsn: i = alu_op
      | i = label_directive
-     | i = expand_macro			{ i }
+     | i = expand_macro
+     | i = condblock_directive		{ i }
 ;
 
 scope: SCOPE EOL is = insns_in_scope SCEND
@@ -95,6 +101,22 @@ insns_in_scope: /* nothing */		{ [] }
 
 context: CONTEXT l = LABEL EOL is = insns_in_scope CTXEND
 					{ Context (Env.new_env (), l, is) }
+;
+
+condblock_directive: c = condition is = insns_in_scope f = next_cond
+					{ CondBlock (c, is, f) }
+;
+
+next_cond: ENDIF			{ [] }
+	 | ELSE EOL fs = insns_in_scope ENDIF
+					{ fs }
+	 | ELIF e = num EOL ts = insns_in_scope f = next_cond
+					{ [CondBlock (e, ts, f)] }
+;
+
+condition: IF e = num EOL		{ e }
+	 | IFDEF l = LABEL EOL		{ Expr.Defined l }
+	 | IFNDEF l = LABEL EOL		{ Expr.Not (Expr.Defined l) }
 ;
 
 alu_op: op = INSN a = am_param		{ Raw_insn (op, a) }
@@ -212,10 +234,22 @@ num: n = NUM				{ Expr.Int n }
    | a = num LSHIFT b = num		{ Expr.Lshift (a, b) }
    | a = num RSHIFT b = num		{ Expr.Rshift (a, b) }
    | a = num ARSHIFT b = num		{ Expr.Arshift (a, b) }
+   | a = num EQUAL b = num		{ Expr.Eq (a, b) }
+   | a = num NEQUAL b = num		{ Expr.Ne (a, b) }
+   | a = num GE b = num			{ Expr.Ge (a, b) }
+   | a = num RANGLE b = num		{ Expr.Gt (a, b) }
+   | a = num LE b = num			{ Expr.Le (a, b) }
+   | a = num LANGLE b = num		{ Expr.Lt (a, b) }
+   | a = num GEU b = num		{ Expr.Geu (a, b) }
+   | a = num GTU b = num		{ Expr.Gtu (a, b) }
+   | a = num LEU b = num		{ Expr.Leu (a, b) }
+   | a = num LTU b = num		{ Expr.Ltu (a, b) }
    | NOT a = num			{ Expr.Not a }
+   | DEFINED LBRACKET lab = LABEL RBRACKET
+					{ Expr.Defined lab }
    | MINUS a = num			{ Expr.Uminus a }
-   | LANGLE a = num			{ Expr.LoByte a }
-   | RANGLE a = num			{ Expr.HiByte a }
+   | LANGLE a = num %prec WORD_PART	{ Expr.LoByte a }
+   | RANGLE a = num %prec WORD_PART	{ Expr.HiByte a }
    | lab = LABEL			{ Expr.ExLabel lab }
    | v = var_ref			{ Expr.VarRef v }
    | LSQUARE n = num RSQUARE		{ n }

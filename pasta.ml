@@ -92,36 +92,14 @@ let collect_temps prog pool =
    If this is called with "prog" in reverse order, the first .org will be the
    one used, and later settings will be ignored.  Could be an error instead.  *)
 
-let extract_origin prog =
+let extract_origin prog defines =
   List.fold_right
     (fun insn (org, insns) ->
       match insn with
-        Insn.Origin x -> Int32.to_int (Expr.eval x), insns
+        Insn.Origin x -> Int32.to_int (Expr.eval ~env:[defines] x), insns
       | x -> org, x::insns)
     prog
     (0, [])
-
-let parse_file input_name =
-  let inf = open_in input_name in
-  let stdinbuf = Lexing.from_channel inf in
-  let frags = try
-    Parser.insn_seq Lexer.token stdinbuf
-  with
-    (* Not sure what circumstances this might still be thrown in.
-       Maybe none.  *)
-    Parser.Error as exc ->
-      Printf.fprintf stderr "Parse error at %s:%d: " input_name
-		     (!Line.line_num);
-      raise exc
-  | Line.ParseError as exc ->
-      Printf.fprintf stderr "Parse error at %s:%d\n" input_name
-		     (!Line.line_num);
-      raise exc
-  | Failure _ as exc ->
-      Printf.fprintf stderr "Error at %s:%d: " input_name (!Line.line_num);
-      raise exc in
-  close_in inf;
-  frags
 
 let rec resolve_includes prog =
   List.fold_right
@@ -129,7 +107,7 @@ let rec resolve_includes prog =
       match insn with
         Insn.IncludeFile f ->
 	  Line.push_include f;
-	  let parsed = parse_file f in
+	  let parsed = Parse_file.parse_file f in
 	  let p_resolved = resolve_includes parsed in
 	  Line.pop_include ();
 	  p_resolved @ out_insns
@@ -143,14 +121,37 @@ let rec resolve_includes prog =
     prog
     []
 
+(*let resolve_conditionals frags defines =
+  let rec conditionalise _ = function
+    Insn.CondBlock (c, tlst, flst) ->
+      let res = Expr.eval ~env:[defines] c in
+      Insn.Scope
+        (Env.new_env (),
+	 if res <> 0l then
+	   Insn.map_with_context conditionalise tlst
+	 else
+	   Insn.map_with_context conditionalise flst)
+  | x -> x in
+  Insn.map_with_context conditionalise frags*)
+
 let _ =
   let infile = ref "" and outfile = ref "a.out"
   and allocdump = ref false
-  and noisy = ref true in
+  and noisy = ref true
+  and defines = Hashtbl.create 10 in
+  let do_define def =
+    try
+      let eq = String.index def '=' in
+      let sym = String.sub def 0 eq
+      and cst = String.sub def (eq + 1) (String.length def - eq - 1) in
+      Hashtbl.replace defines sym (Expr.KnownVal (Int32.of_string cst))
+    with Not_found ->
+      Hashtbl.replace defines def Expr.UnknownVal in
   let argspec =
     ["-o", Arg.Set_string outfile, "Set output file";
      "-a", Arg.Set allocdump, "Write allocation info dump";
-     "-q", Arg.Clear noisy, "Be quiet about synthetic instructions"]
+     "-q", Arg.Clear noisy, "Be quiet about synthetic instructions";
+     "-D", Arg.String do_define, "Define assembly-time constant from cmdline"]
   and usage = "Usage: pasta -o <output> <input>" in
   Arg.parse argspec (fun i -> infile := i) usage;
   if !infile = "" then begin
@@ -160,19 +161,19 @@ let _ =
   let return_code = ref 0 in
   Line.current_file := !infile;
   let frags_toplevel = try
-    parse_file !infile
+    Parse_file.parse_file !infile
   with Line.ParseError ->
     exit 1 in
   let alloc_filename = Log.alloc_filename !infile in
   if !allocdump then
     Log.open_alloc alloc_filename;
   begin try
-    let frags = resolve_includes frags_toplevel in
+    let frags = Layout.layout_conditionals frags_toplevel defines in
     let prog = collect_insns frags in
     Layout.verify_declarations frags;
     let macros = collect_macros frags in
     let prog = Insn.invoke_macros prog macros in
-    let origin, prog = extract_origin prog in
+    let origin, prog = extract_origin prog defines in
     collect_contexts prog;
     collect_notemps frags;
     Insn.find_dependencies prog;
@@ -205,7 +206,7 @@ let _ =
     (* Now, prog is in "reverse" order, i.e. the head of the list contains the
        last instruction (and the head of each nested scope contains the last
        instruction of that scope.  *)
-    let cooked_prog, _, env  = Layout.iterate_layout origin prog in
+    let cooked_prog, _, env  = Layout.iterate_layout origin prog defines in
     (* Iterating layout puts the program in the correct order (i.e. with the
        head of the insn list as the start of the program).  *)
     let cooked_prog' = Synthbranch.expand_synth_branch cooked_prog origin [env]

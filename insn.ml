@@ -10,8 +10,8 @@ type insn =
   | Ascii of ascii_part list
   | DataBlock of const_expr * const_expr
   | Origin of const_expr
-  | Scope of (string, int32) Hashtbl.t * insn list
-  | Context of (string, int32) Hashtbl.t * string * insn list
+  | Scope of (string, symval) Hashtbl.t * insn list
+  | Context of (string, symval) Hashtbl.t * string * insn list
   | Temps of temp_spec list
   | NoTemps of string list
   | Interf of string list * string list
@@ -21,6 +21,7 @@ type insn =
   | DeclVars of int * string list
   | SourceLoc of srcloc
   | IncludeFile of filename
+  | CondBlock of const_expr * insn list * insn list
 
 and macro_arg = Const_expr of const_expr
 	      | Addressing_mode of raw_addrmode
@@ -122,7 +123,7 @@ exception BadAddrmode of string
 let addrmode_from_raw env first_pass vpc opcode am =
   let eval_addr n =
     try Expr.eval ~env n
-    with Expr.Label_not_found _ as e ->
+    with (Expr.Label_not_found _ | Expr.UnknownValue _) as e ->
       (* Ignore missing labels on first pass, since we've not seen them all
          yet.  *)
       if first_pass then 0xffffl else raise e

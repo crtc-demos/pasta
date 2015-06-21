@@ -25,8 +25,7 @@ let rec insn_size env = function
   | _ -> failwith "Can't find size of insn"
 
 let rec verify_declarations insns =
-  let labels = Hashtbl.create 10
-  and aliases = Hashtbl.create 10
+  let labels_aliases = Hashtbl.create 10
   and origin = Hashtbl.create 1
   and contexts = Hashtbl.create 10
   and macros = Hashtbl.create 10 in
@@ -39,8 +38,8 @@ let rec verify_declarations insns =
   let sourceloc = ref unknown_sourceline in
   let check = function
     SourceLoc sl -> sourceloc := sl
-  | Label l -> add_once "label" labels l !sourceloc
-  | Alias (a, _) -> add_once "alias" aliases a !sourceloc
+  | Label l -> add_once "label or alias" labels_aliases l !sourceloc
+  | Alias (a, _) -> add_once "label or alias" labels_aliases a !sourceloc
   | Origin _ -> add_once "origin" origin ".org" !sourceloc
   | Context (_, name, inner) ->
       add_once "context" contexts name !sourceloc;
@@ -50,6 +49,87 @@ let rec verify_declarations insns =
   | Macrodef (name, _, _) -> add_once "macro" macros name !sourceloc
   | _ -> () in
   List.iter check insns
+
+(* Do a dummy layout pass to find aliases (exactly, with non-label-dependent
+   values) or labels (defined vs. undefined only).  Multiple definition errors
+   are not detected here.  *)
+
+let layout_conditionals_1 frags defines first_pass =
+  let rec build_conditional env lineno insns_in insns_out iter_again =
+    match insns_in with
+      [] -> List.rev insns_out, iter_again
+    | i::is ->
+        begin match i with
+	  Label foo ->
+	    Env.replace env foo Expr.UnknownVal;
+	    build_conditional env lineno is (i::insns_out) iter_again
+	| Alias (label, cexp) ->
+            begin try
+	      let cst = Expr.eval ~env cexp in
+	      Env.replace env label (Expr.KnownVal cst);
+	      build_conditional env lineno is (i::insns_out) iter_again
+	    with
+	      Expr.UnknownValue _ ->
+	        Env.replace env label Expr.UnknownVal;
+		build_conditional env lineno is (i::insns_out) iter_again
+	    | Expr.Label_not_found _ ->
+		build_conditional env lineno is (i::insns_out) true
+	    end
+	| CondBlock (cnd, tlst, flst) ->
+            begin try
+	      let cst = Expr.eval ~env cnd in
+	      if cst <> 0l then
+		build_conditional env lineno (tlst @ is) insns_out iter_again
+	      else
+		build_conditional env lineno (flst @ is) insns_out iter_again
+	    with Expr.Label_not_found _ as e ->
+	      if first_pass then
+		build_conditional env lineno is (i::insns_out) true
+	      else
+	        raise e
+	    end
+	| Scope (inner_env, insns_in_scope) ->
+	    let scope, iter_again' =
+	      build_conditional (inner_env::env) lineno insns_in_scope []
+				iter_again in
+	    build_conditional env lineno is
+			      (Scope (inner_env, scope)::insns_out)
+			      iter_again'
+	| Context (inner_env, ctxname, insns_in_ctx) ->
+	    let ctx, iter_again' =
+	      build_conditional (inner_env::env) lineno insns_in_ctx []
+				iter_again in
+	    build_conditional env lineno is
+			      (Context (inner_env, ctxname, ctx)::insns_out)
+			      iter_again'
+	| Macrodef (nm, args, insns_in_def) ->
+	    let mdef, iter_again' =
+	      build_conditional env lineno insns_in_def [] iter_again in
+	    build_conditional env lineno is
+			      (Macrodef (nm, args, mdef)::insns_out)
+			      iter_again'
+	| IncludeFile f ->
+	    Line.push_include f;
+	    let parsed = Parse_file.parse_file f in
+	    let included_insns, iter_again' =
+	      build_conditional env lineno parsed [] iter_again in
+	    Line.pop_include ();
+	    build_conditional env lineno (included_insns @ is) insns_out
+			      iter_again'
+	| SourceLoc new_line ->
+	    build_conditional env new_line is (i::insns_out) iter_again
+	| _ -> build_conditional env lineno is (i::insns_out) iter_again
+	end in
+  build_conditional defines (SourceLine ("<unknown>", 0)) frags [] false
+
+let layout_conditionals frags defines =
+  let rec retry frags first_pass =
+    let frags, iter_again = layout_conditionals_1 frags [defines] first_pass in
+    if iter_again then
+      retry frags false
+    else
+      frags in
+  retry frags true
 
 (* Do layout. Convert raw (parsed) insns into "cooked" insns, ready for
    encoding. Also flatten out nested scopes, and reverse the program so it's in
@@ -75,14 +155,14 @@ let layout env first_pass vpc_start insns =
 	       Insn.string_of_srcloc lineno))
 	  end
       | Label foo ->
-          Env.replace env foo (Int32.of_int vpc);
+          Env.replace env foo (Expr.KnownVal (Int32.of_int vpc));
 	  insns, vpc, iter_again
       | Alias (label, cexp) ->
 	  begin try
 	    let cst = Expr.eval ~env cexp in
-	    Env.replace env label cst;
+	    Env.replace env label (Expr.KnownVal cst);
 	    insns, vpc, iter_again
-	  with Expr.Label_not_found _ as e ->
+	  with Expr.Label_not_found _ ->
 	    insns, vpc, true
 	  end
       | Data (size, cexplist) ->
@@ -142,8 +222,7 @@ let layout env first_pass vpc_start insns =
     insns;
   insns', last_vpc, iter_again
 
-let iterate_layout vpc_start insns =
-  let outer_env = Env.new_env () in
+let iterate_layout vpc_start insns outer_env =
   let rec iter first_pass previous_cooked_insns =
     let cooked_insns, last_pc, iterate_again =
       layout outer_env first_pass vpc_start insns in

@@ -170,7 +170,7 @@ let layout env first_pass vpc_start insns =
 	    (fun cexp ->
 	      try
 	        Expr.subst_labels ~env cexp
-	      with Expr.Label_not_found _ ->
+	      with Expr.UnknownValue _ | Expr.Label_not_found _ ->
 	        cexp)
 	    cexplist in
 	  let data' = Data (size, items') in

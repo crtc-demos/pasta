@@ -96,18 +96,19 @@ let layout_conditionals_1 frags defines first_pass =
 			      (Scope (inner_env, scope)::insns_out)
 			      iter_again'
 	| Context (inner_env, ctxname, insns_in_ctx) ->
+	    Env.replace env ctxname Expr.UnknownVal;
 	    let ctx, iter_again' =
 	      build_conditional (inner_env::env) lineno insns_in_ctx []
 				iter_again in
 	    build_conditional env lineno is
 			      (Context (inner_env, ctxname, ctx)::insns_out)
 			      iter_again'
-	| Macrodef (nm, args, insns_in_def) ->
+	(*| Macrodef (nm, args, insns_in_def) ->
 	    let mdef, iter_again' =
 	      build_conditional env lineno insns_in_def [] iter_again in
 	    build_conditional env lineno is
 			      (Macrodef (nm, args, mdef)::insns_out)
-			      iter_again'
+			      iter_again'*)
 	| IncludeFile f ->
 	    Line.push_include f;
 	    let parsed = Parse_file.parse_file f in
@@ -162,7 +163,7 @@ let layout env first_pass vpc_start insns =
 	    let cst = Expr.eval ~env cexp in
 	    Env.replace env label (Expr.KnownVal cst);
 	    insns, vpc, iter_again
-	  with Expr.Label_not_found _ ->
+	  with Expr.UnknownValue _ | Expr.Label_not_found _ ->
 	    insns, vpc, true
 	  end
       | Data (size, cexplist) ->

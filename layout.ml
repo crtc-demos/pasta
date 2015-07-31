@@ -103,12 +103,12 @@ let layout_conditionals_1 frags defines first_pass =
 	    build_conditional env lineno is
 			      (Context (inner_env, ctxname, ctx)::insns_out)
 			      iter_again'
-	(*| Macrodef (nm, args, insns_in_def) ->
+	| Macrodef (nm, args, insns_in_def) ->
 	    let mdef, iter_again' =
 	      build_conditional env lineno insns_in_def [] iter_again in
 	    build_conditional env lineno is
 			      (Macrodef (nm, args, mdef)::insns_out)
-			      iter_again'*)
+			      iter_again'
 	| IncludeFile f ->
 	    Line.push_include f;
 	    let parsed = Parse_file.parse_file f in

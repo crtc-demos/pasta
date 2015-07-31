@@ -5,12 +5,12 @@ module Pool = Set.Make(struct type t = int let compare = compare end)
 class temps = object
   val mutable pool = Pool.empty
   
-  method add_to_pool tmpspec =
+  method add_to_pool tmpspec env =
     begin match tmpspec with
-      Insn.OneTemp x -> pool <- Pool.add (Expr.eval_int x) pool
+      Insn.OneTemp x -> pool <- Pool.add (Expr.eval_int ~env:env x) pool
     | Insn.TempRange (loex, hiex) ->
-        let lo = Expr.eval_int loex
-	and hi = Expr.eval_int hiex in
+        let lo = Expr.eval_int ~env:env loex
+	and hi = Expr.eval_int ~env:env hiex in
 	for r = lo to hi do
 	  pool <- Pool.add r pool
 	done

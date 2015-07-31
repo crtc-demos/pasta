@@ -79,11 +79,11 @@ let collect_protections prog =
     prog;
   !plist
 
-let collect_temps prog pool =
+let collect_temps prog pool env =
   List.iter
     (function
         Insn.Temps tempspecs ->
-          List.iter (fun tspec -> pool#add_to_pool tspec) tempspecs
+          List.iter (fun tspec -> pool#add_to_pool tspec env) tempspecs
       | _ -> ())
     prog
 
@@ -188,7 +188,7 @@ let _ =
     | Some fh -> Alloc.print_graph fh igraph
     end;
     let pool = new Temps.temps in
-    collect_temps frags pool;
+    collect_temps frags pool [defines];
     let spilled = Colour.alloc igraph pool in
     if spilled <> [] then begin
       Printf.fprintf stderr "Ran out of temps!\n";
